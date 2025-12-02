@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Energy Perfect</title>
+    <title>Cyberpunk Boxing: Perfect Sync</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -199,7 +199,7 @@
         </button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
         
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v6.6 Energy Logic Perfect</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.0 Perfect Sync</div>
     </div>
 
     <!-- 連線大廳 -->
@@ -293,7 +293,7 @@
 
 <!-- Firebase 模組 -->
 <script type="module">
-    // 您的 Firebase 設定
+    // 您的 Firebase 設定 (已替換)
     const myFirebaseConfig = {
       apiKey: "AIzaSyDxEuqX6VZC9eqmEk5Sp6jgynMxDm2U8Cg",
       authDomain: "boxing-game-1f009.firebaseapp.com",
@@ -311,7 +311,7 @@
     (async () => {
         try {
             const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-            const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
             const { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
             const app = initializeApp(myFirebaseConfig);
@@ -376,9 +376,15 @@
                 const up = {}; up[myRole+'_hp'] = 0; up.ts = Date.now(); await updateDoc(getRef(currentRoomId), up);
             };
 
+            // 主機專用：結算後寫回正確數值
             window.syncState = async (s) => {
                 if(myRole !== 'p1') return;
-                await updateDoc(getRef(currentRoomId), { p1_act: null, p2_act: null, p1_hp: s.p1_hp, p1_en: s.p1_en, p2_hp: s.p2_hp, p2_en: s.p2_en, ts: Date.now() });
+                await updateDoc(getRef(currentRoomId), { 
+                    p1_act: null, p2_act: null, 
+                    p1_hp: s.p1_hp, p1_en: s.p1_en, 
+                    p2_hp: s.p2_hp, p2_en: s.p2_en, 
+                    ts: Date.now() 
+                });
             };
 
             window.resetRoom = async () => {
@@ -422,6 +428,7 @@ let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
 let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
+let pendingServerData = null; // [新增] 用來暫存伺服器數據
 
 class Btn {
     constructor(t,x,y,c,a,cost=0){this.t=t;this.r={x,y,w:100,h:50};this.c=c;this.a=a;this.cost=cost;}
@@ -473,21 +480,31 @@ window.restartGame = () => {
     else { startGame('single'); }
 };
 
-// [關鍵修復]
+// [關鍵修復]：解決能量同步問題
 window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
     
-    // [Fix] 只有在 INPUT 或 OVER 狀態才同步數值，避免動畫時被 DB 覆蓋
-    if (state === ST.INPUT || state === ST.OVER) {
-        p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en;
+    // 如果投降了，直接結束
+    if(state !== ST.OVER && (data.p1_hp <= 0 || data.p2_hp <= 0)) {
+        p1.hp = data.p1_hp; p2.hp = data.p2_hp;
+        state = ST.ANIM; timer = 50; p1Act = 'idle'; p2Act = 'idle'; msg = "有人投降了！";
+        return;
     }
-    
+
+    // 將最新的伺服器資料暫存，稍後結算完畢後強制應用
+    pendingServerData = data;
+
+    // 如果目前在等待指令 (INPUT)，則可以安全地同步資料，避免覆蓋本地暫時的計算
+    if (state === ST.INPUT) {
+        applyServerData();
+    }
+
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
-            // [Fix] 強制扣除能量
+            // 扣氣 (視覺上)，實際數值以回合結束後的伺服器同步為準
             deductEn(p1, p1Act); deductEn(p2, p2Act);
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
@@ -495,18 +512,18 @@ window.handleSync = (data, role) => {
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
             state = ST.INPUT;
-            // 如果是在等待下一回合，強制同步一次最新數值以防萬一
-            p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en;
             if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
     }
-    
-    // 檢查投降
-    if(state !== ST.OVER && (data.p1_hp <= 0 || data.p2_hp <= 0)) {
-        p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.ANIM; timer = 50; p1Act = 'idle'; p2Act = 'idle'; msg = "有人投降了！";
-    }
 };
+
+function applyServerData() {
+    if (!pendingServerData) return;
+    p1.hp = pendingServerData.p1_hp; 
+    p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; 
+    p2.en = pendingServerData.p2_en;
+}
 
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
@@ -543,6 +560,21 @@ function loop() {
         timer++;
         if(timer > 60) {
             setState(p1,'idle'); setState(p2,'idle');
+            // 回合結束，進入下一回合 Input 狀態時，強制同步伺服器正確數值
+            state = ST.INPUT; 
+            msg = "下一回合";
+            
+            // 房主負責運算並上傳結果
+            if(window.gameMode==='multi' && window.syncState) {
+                window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
+            } else {
+                // 單機模式直接繼續
+            }
+            
+            // 客戶端：如果有暫存的伺服器數據（房主剛傳的），現在應用它
+            if (window.gameMode === 'multi') applyServerData();
+
+            // 檢查勝負
             if(p1.hp<=0 || p2.hp<=0) {
                 state = ST.OVER;
                 let t = "DRAW";
@@ -551,10 +583,6 @@ function loop() {
                 document.getElementById('result-title').innerText = t;
                 document.getElementById('ui-result').classList.remove('hidden');
                 document.getElementById('btn-surrender').classList.add('hidden');
-            } else {
-                state = ST.INPUT; msg = "下一回合";
-                // 結算後同步最新的血量與能量
-                if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
         }
     }
