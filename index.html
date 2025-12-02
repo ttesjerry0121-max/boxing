@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Visual Fix</title>
+    <title>Cyberpunk Boxing: Energy Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -199,7 +199,7 @@
         </button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
         
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v6.4 Visual Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v6.5 Energy Logic Fix</div>
     </div>
 
     <!-- 連線大廳 -->
@@ -257,7 +257,6 @@
 <script>
     const MAX_HP = 100;
     const MAX_EN = 8;
-    // [修復] 補上 ORANGE 顏色定義
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
 
@@ -332,7 +331,6 @@
                 }
             });
 
-            // 路徑改為簡單的 'rooms' 集合
             function getRef(code) { return doc(db, 'rooms', 'room_'+code); }
 
             window.createRoom = async () => {
@@ -449,7 +447,6 @@ class Btn {
     check(p,en){return this.hit(p) && en>=this.cost;}
 }
 
-// [修復] 使用 CLR.ORANGE
 const BTNS = [
     new Btn("集氣",40,420,CLR.YEL,"charge"), new Btn("防禦",150,420,CLR.BLUE,"block"), new Btn("超級防守",260,420,CLR.PUR,"s_block"),
     new Btn("機械刺拳",370,420,CLR.RED,"attack"), new Btn("音速衝擊",480,420,CLR.ORANGE,"skill1",1), new Btn("雷霆重擊",590,420,'#FF6400',"skill2",2), new Btn("終極崩壞",700,420,'#FF0000',"skill3",3)
@@ -483,10 +480,16 @@ window.handleSync = (data, role) => {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
         state = ST.ANIM; timer = 50; p1Act = 'idle'; p2Act = 'idle'; msg = "有人投降了！";
     } else { p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en; }
+    
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
+            
+            // [關鍵修復] 在進入動畫前，強制扣除雙方能量
+            deductEn(p1, p1Act); 
+            deductEn(p2, p2Act);
+            
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
@@ -501,19 +504,11 @@ window.handleSync = (data, role) => {
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
     
-    // [修復] 震動衰減邏輯
     let ox=0,oy=0;
-    if(p1.shake>0) p1.shake *= 0.85; // 加快衰減
-    if(p2.shake>0) p2.shake *= 0.85;
-    if(p1.shake<0.5) p1.shake=0;     // 強制歸零
-    if(p2.shake<0.5) p2.shake=0;
-    
-    let currentShake = Math.max(p1.shake, p2.shake);
-    if(currentShake > 0) {
-        // 震動幅度隨數值變小而變小
-        ox = (Math.random()-0.5) * currentShake;
-        oy = (Math.random()-0.5) * currentShake;
-    }
+    if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
+    if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
+    let s = Math.max(p1.shake, p2.shake);
+    if(s>0) { ox=(Math.random()-0.5)*s; oy=(Math.random()-0.5)*s; }
     
     ctx.strokeStyle='#28003C';ctx.lineWidth=1;for(let i=-200;i<1100;i+=50){ctx.beginPath();ctx.moveTo(i+ox*0.5,400+oy);ctx.lineTo(i-300+(i/900)*600+ox,600+oy);ctx.stroke();}
     ctx.strokeStyle='#C0C';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,400+oy);ctx.lineTo(900,400+oy);ctx.stroke();
