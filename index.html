@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Energy Fix</title>
+    <title>Cyberpunk Boxing: Energy Perfect</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -199,7 +199,7 @@
         </button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
         
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v6.5 Energy Logic Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v6.6 Energy Logic Perfect</div>
     </div>
 
     <!-- 連線大廳 -->
@@ -311,7 +311,7 @@
     (async () => {
         try {
             const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-            const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
             const { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
             const app = initializeApp(myFirebaseConfig);
@@ -473,31 +473,38 @@ window.restartGame = () => {
     else { startGame('single'); }
 };
 
+// [關鍵修復]
 window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
-    if(state !== ST.OVER && (data.p1_hp <= 0 || data.p2_hp <= 0)) {
-        p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.ANIM; timer = 50; p1Act = 'idle'; p2Act = 'idle'; msg = "有人投降了！";
-    } else { p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en; }
+    
+    // [Fix] 只有在 INPUT 或 OVER 狀態才同步數值，避免動畫時被 DB 覆蓋
+    if (state === ST.INPUT || state === ST.OVER) {
+        p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en;
+    }
     
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
-            
-            // [關鍵修復] 在進入動畫前，強制扣除雙方能量
-            deductEn(p1, p1Act); 
-            deductEn(p2, p2Act);
-            
+            // [Fix] 強制扣除能量
+            deductEn(p1, p1Act); deductEn(p2, p2Act);
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
             state = ST.INPUT;
+            // 如果是在等待下一回合，強制同步一次最新數值以防萬一
+            p1.hp = data.p1_hp; p1.en = data.p1_en; p2.hp = data.p2_hp; p2.en = data.p2_en;
             if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
+    }
+    
+    // 檢查投降
+    if(state !== ST.OVER && (data.p1_hp <= 0 || data.p2_hp <= 0)) {
+        p1.hp = data.p1_hp; p2.hp = data.p2_hp;
+        state = ST.ANIM; timer = 50; p1Act = 'idle'; p2Act = 'idle'; msg = "有人投降了！";
     }
 };
 
@@ -546,6 +553,7 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
+                // 結算後同步最新的血量與能量
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
         }
