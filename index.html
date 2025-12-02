@@ -283,7 +283,6 @@
         }, 2000);
     };
     
-    // [修復] 座標校正函式
     function getMousePos(evt) {
         const rect = canvas.getBoundingClientRect();
         return {
@@ -295,25 +294,33 @@
 
 <!-- Firebase 模組 -->
 <script type="module">
-    window.createRoom = () => alert("離線模式無法建立房間");
-    window.joinRoom = () => alert("離線模式無法加入房間");
+    // 您的 Firebase 設定
+    const myFirebaseConfig = {
+      apiKey: "AIzaSyDxEuqX6VZC9eqmEk5Sp6jgynMxDm2U8Cg",
+      authDomain: "boxing-game-1f009.firebaseapp.com",
+      projectId: "boxing-game-1f009",
+      storageBucket: "boxing-game-1f009.firebasestorage.app",
+      messagingSenderId: "909077239298",
+      appId: "1:909077239298:web:4df4a8bf7feb330010391b",
+      measurementId: "G-QZYKXZLH9X"
+    };
+
+    window.createRoom = () => alert("系統初始化中...");
+    window.joinRoom = () => alert("系統初始化中...");
     window.sendSurrender = () => {};
 
     (async () => {
         try {
-            if (typeof __firebase_config === 'undefined') throw new Error("Local Mode");
             const { initializeApp } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js");
-            const { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
+            const { getAuth, signInAnonymously, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js");
             const { getFirestore, doc, setDoc, getDoc, onSnapshot, updateDoc } = await import("https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js");
 
-            const app = initializeApp(JSON.parse(__firebase_config));
+            const app = initializeApp(myFirebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
             let currentUser, currentRoomId, myRole;
 
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) await signInWithCustomToken(auth, __initial_auth_token);
-            else await signInAnonymously(auth);
+            await signInAnonymously(auth);
 
             onAuthStateChanged(auth, u => {
                 if(u) {
@@ -325,14 +332,22 @@
                 }
             });
 
-            function getRef(code) { return doc(db, 'artifacts', appId, 'public', 'data', 'rooms', 'room_'+code); }
+            // 路徑改為簡單的 'rooms' 集合
+            function getRef(code) { return doc(db, 'rooms', 'room_'+code); }
 
             window.createRoom = async () => {
                 if(!currentUser) return;
                 const code = Math.floor(1000 + Math.random()*9000).toString();
                 currentRoomId = code; myRole = 'p1';
                 document.getElementById('lobby-main').classList.add('hidden'); document.getElementById('lobby-wait').classList.remove('hidden'); document.getElementById('room-code-display').innerText = code;
-                await setDoc(getRef(code), { status: 'waiting', p1: currentUser.uid, p2: null, p1_act: null, p2_act: null, p1_hp: 100, p1_en: 0, p2_hp: 100, p2_en: 0, ts: Date.now() });
+                
+                await setDoc(getRef(code), { 
+                    status: 'waiting', p1: currentUser.uid, p2: null, 
+                    p1_act: null, p2_act: null, 
+                    p1_hp: 100, p1_en: 0, 
+                    p2_hp: 100, p2_en: 0, 
+                    ts: Date.now() 
+                });
                 setupListener(code);
             };
 
@@ -342,7 +357,8 @@
                 if(code.length!==4) return alert("請輸入4位數字");
                 const ref = getRef(code);
                 const snap = await getDoc(ref);
-                if(!snap.exists() || snap.data().p2) return alert("房間錯誤");
+                if(!snap.exists()) return alert("房間不存在");
+                if(snap.data().p2) return alert("房間已滿");
                 await updateDoc(ref, { p2: currentUser.uid, status: 'playing' });
                 currentRoomId = code; myRole = 'p2';
                 startGame('multi'); setupListener(code);
@@ -371,7 +387,10 @@
                 if(myRole !== 'p1') return;
                 await updateDoc(getRef(currentRoomId), { p1_hp: 100, p1_en: 0, p2_hp: 100, p2_en: 0, p1_act: null, p2_act: null, status: 'playing', ts: Date.now() });
             };
-        } catch (e) { console.warn("Local Mode"); }
+        } catch (e) { 
+            console.error("Firebase Init Error:", e);
+            document.getElementById('connection-status').innerText = "連線失敗";
+        }
     })();
 </script>
 
@@ -412,7 +431,6 @@ class Btn {
         const dis = en<this.cost || !active;
         const col = dis ? CLR.GRY : this.c;
         const hov = !dis && this.hit(mouse);
-        // 設定游標
         if(hov) canvas.style.cursor = 'pointer';
         
         ctx.fillStyle = hov ? CLR.WHT : col;
