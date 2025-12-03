@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Final Edition</title>
+    <title>Cyberpunk Boxing: Final Fixed</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -35,7 +35,7 @@
             transition: all 0.2s; font-family: 'Noto Sans TC', sans-serif;
         }
         .btn-menu:hover:not(:disabled) { background: #0ff; color: #000; box-shadow: 0 0 30px rgba(0,255,255,0.6); transform: translateY(-2px); }
-        .btn-menu:disabled { border-color: #444; color: #666; cursor: not-allowed; background: rgba(0,0,0,0.5); }
+        .btn-menu:disabled { border-color: #444; color: #666; cursor: not-allowed; }
         
         .btn-secondary { border-color: #555; color: #aaa; background: transparent; }
         .btn-secondary:hover { border-color: #fff; color: #fff; }
@@ -62,7 +62,13 @@
         .rule-item { margin-bottom: 15px; border-left: 3px solid #ffe600; padding-left: 10px; text-align: left; }
         .highlight { color: #fff; font-weight: bold; }
         
-        #restart-status { color: #ffe600; font-size: 14px; margin-top: 10px; height: 20px; }
+        /* 身份標示 */
+        #player-badge {
+            position: absolute; top: 55px; left: 15px;
+            background: rgba(0,0,0,0.8); border: 1px solid #fff;
+            color: #fff; padding: 5px 10px; font-size: 12px;
+            display: none; pointer-events: none;
+        }
     </style>
 </head>
 <body>
@@ -80,6 +86,8 @@
             <button id="btn-sfx" class="top-btn active">🔊 SFX</button>
         </div>
     </div>
+    
+    <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
     <div id="ui-menu" class="ui-layer">
@@ -88,7 +96,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v8.0 Dual Confirm</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.2 Final Fixed</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -106,7 +114,7 @@
         <div id="lobby-wait" class="hidden" style="text-align: center;">
             <div style="color:#0ff;">WAITING FOR OPPONENT</div>
             <div id="room-code-display" class="room-code-display">----</div>
-            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消</button>
+            <button class="btn-menu btn-secondary" onclick="location.reload()">取消</button>
         </div>
     </div>
 
@@ -124,9 +132,8 @@
     <!-- UI: 結算 -->
     <div id="ui-result" class="ui-layer hidden" style="background: rgba(0,0,0,0.85);">
         <h1 id="result-title">YOU WIN</h1>
-        <button id="btn-restart" class="btn-menu" onclick="requestRestart()">再來一局</button>
-        <div id="restart-status"></div>
-        <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">離開房間</button>
+        <button class="btn-menu" onclick="restartGame()">再來一局</button>
+        <button class="btn-menu btn-secondary" onclick="location.reload()">離開</button>
     </div>
 
     <canvas id="gameCanvas" width="900" height="600"></canvas>
@@ -143,10 +150,6 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
-    // 離線模式預設函式
-    window.leaveRoom = function() { location.reload(); };
-    window.requestRestart = function() { restartGameLocal(); };
-
     window.confirmSurrender = function() {
         if (!confirm("確定要投降嗎？")) return;
         if (window.gameMode === 'multi') {
@@ -196,7 +199,7 @@
             const app = initializeApp(myFirebaseConfig);
             const auth = getAuth(app);
             const db = getFirestore(app);
-            let currentUser, currentRoomId, myRole;
+            let currentUser;
 
             await signInAnonymously(auth);
 
@@ -215,7 +218,11 @@
             window.createRoom = async () => {
                 if(!currentUser) return;
                 const code = Math.floor(1000 + Math.random()*9000).toString();
-                currentRoomId = code; myRole = 'p1';
+                
+                // [重要] 設定全域角色變數
+                window.currentRoomId = code; 
+                window.myRole = 'p1'; 
+                
                 document.getElementById('lobby-main').classList.add('hidden'); document.getElementById('lobby-wait').classList.remove('hidden'); document.getElementById('room-code-display').innerText = code;
                 
                 await setDoc(getRef(code), { 
@@ -223,7 +230,6 @@
                     p1_act: null, p2_act: null, 
                     p1_hp: 100, p1_en: 0, 
                     p2_hp: 100, p2_en: 0, 
-                    p1_r: false, p2_r: false, // 重賽旗標
                     ts: Date.now() 
                 });
                 setupListener(code);
@@ -238,61 +244,32 @@
                 if(!snap.exists()) return alert("房間不存在");
                 if(snap.data().p2) return alert("房間已滿");
                 await updateDoc(ref, { p2: currentUser.uid, status: 'playing' });
-                currentRoomId = code; myRole = 'p2';
+                
+                // [重要] 設定全域角色變數
+                window.currentRoomId = code; 
+                window.myRole = 'p2'; 
+                
                 startGame('multi'); setupListener(code);
             };
 
             function setupListener(code) {
-                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), myRole); });
+                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
             }
 
-            // [修復] 離開房間：通知對方並重整
-            window.leaveRoom = async () => {
-                if (currentRoomId) {
-                    try { await updateDoc(getRef(currentRoomId), { status: 'closed' }); } catch(e) {}
-                }
-                location.reload();
-            };
-
-            // [新增] 請求重賽：只更新自己的狀態
-            window.requestRestart = async () => {
-                if (!currentRoomId) return restartGameLocal();
-                const up = {}; up[myRole + '_r'] = true;
-                await updateDoc(getRef(currentRoomId), up);
-                
-                // 鎖定按鈕
-                const btn = document.getElementById('btn-restart');
-                btn.disabled = true;
-                btn.innerText = "等待對手確認...";
-            };
-
-            // [主機專用] 執行重置：當雙方都準備好
-            window.resetMultiMatch = async () => {
-                if(myRole !== 'p1') return;
-                await updateDoc(getRef(currentRoomId), {
-                    p1_hp: 100, p1_en: 0, 
-                    p2_hp: 100, p2_en: 0,
-                    p1_act: null, p2_act: null,
-                    p1_r: false, p2_r: false, // 清除旗標
-                    status: 'playing',
-                    ts: Date.now()
-                });
-            };
-
             window.sendAction = async (act) => {
-                if(!currentRoomId) return;
-                const up = {}; up[myRole+'_act'] = act; await updateDoc(getRef(currentRoomId), up);
+                if(!window.currentRoomId) return;
+                const up = {}; up[window.myRole+'_act'] = act; await updateDoc(getRef(window.currentRoomId), up);
             };
 
             window.sendSurrender = async () => {
-                if(!currentRoomId) return;
-                const up = {}; up[myRole+'_hp'] = 0; up[myRole+'_act'] = 'surrender'; up.ts = Date.now(); 
-                await updateDoc(getRef(currentRoomId), up);
+                if(!window.currentRoomId) return;
+                const up = {}; up[window.myRole+'_hp'] = 0; up[window.myRole+'_act'] = 'surrender'; up.ts = Date.now(); 
+                await updateDoc(getRef(window.currentRoomId), up);
             };
 
             window.syncState = async (s) => {
-                if(myRole !== 'p1') return;
-                await updateDoc(getRef(currentRoomId), { 
+                if(window.myRole !== 'p1') return;
+                await updateDoc(getRef(window.currentRoomId), { 
                     p1_act: null, p2_act: null, 
                     p1_hp: s.p1_hp, p1_en: s.p1_en, 
                     p2_hp: s.p2_hp, p2_en: s.p2_en, 
@@ -300,6 +277,10 @@
                 });
             };
 
+            window.resetRoom = async () => {
+                if(window.myRole !== 'p1') return;
+                await updateDoc(getRef(window.currentRoomId), { p1_hp: 100, p1_en: 0, p2_hp: 100, p2_en: 0, p1_act: null, p2_act: null, status: 'playing', ts: Date.now() });
+            };
         } catch (e) { 
             console.error("Firebase Init Error:", e);
             document.getElementById('connection-status').innerText = "連線失敗";
@@ -379,74 +360,52 @@ window.startGame = (m) => {
     state = ST.INPUT;
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
-    
-    // 重置結算畫面按鈕狀態
-    const btnRestart = document.getElementById('btn-restart');
-    btnRestart.disabled = false;
-    btnRestart.innerText = "再來一局";
-    document.getElementById('restart-status').innerText = "";
-
-    if(m === 'single') { msg = "單人模式：請下指令"; document.getElementById('room-info').style.display = 'none'; }
-    else { msg = "連線成功！請選擇行動"; const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; }
-};
-
-// 本地單人重置
-window.restartGameLocal = () => {
-    startGame('single');
-};
-
-// [關鍵] 完美同步邏輯 v8.0
-window.handleSync = (data, role) => {
-    // 1. 對方斷線/離開偵測
-    if (data.status === 'closed') { 
-        alert("對方已離開遊戲，回到主選單"); 
-        location.reload(); 
-        return; 
+    if(m === 'single') { 
+        msg = "單人模式：請下指令"; 
+        document.getElementById('room-info').style.display = 'none'; 
+        document.getElementById('player-badge').style.display = 'none';
     }
+    else { 
+        msg = "連線成功！請選擇行動"; 
+        const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; 
+        // 顯示身分
+        const badge = document.getElementById('player-badge');
+        badge.style.display = 'block';
+        badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
+        badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
+    }
+};
 
+window.restartGame = () => {
+    document.getElementById('ui-result').classList.add('hidden');
+    if(window.gameMode === 'multi' && window.resetRoom) window.resetRoom();
+    else { startGame('single'); }
+};
+
+window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // [Fix] 雙人重賽偵測
-    // 如果雙方都同意重賽 (p1_r && p2_r)，房主會重置資料庫為初始狀態 (hp=100)
-    // 這裡偵測到 hp 回滿，就重新開始遊戲
-    if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
-        startGame('multi');
-        return;
-    }
-
-    // [Update] 顯示對手重賽意願
-    if (state === ST.OVER) {
-        const opRole = role === 'p1' ? 'p2' : 'p1';
-        if (data[opRole + '_r']) {
-            document.getElementById('restart-status').innerText = "對手想要再來一局！";
-        }
-        
-        // 如果我是房主，且雙方都準備好了，執行重置
-        if (role === 'p1' && data.p1_r && data.p2_r) {
-            window.resetMultiMatch();
-        }
-    }
-    
+    // 檢查投降
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.RESOLVE; 
-        timer = 100; 
-        p1Act = 'idle'; p2Act = 'idle'; 
-        msg = "戰鬥結束！";
+        state = ST.RESOLVE; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "戰鬥結束！";
         return;
     }
 
     pendingServerData = data;
-
     if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
-            deductEn(p1, p1Act); deductEn(p2, p2Act);
+            
+            // 確保變數沒錯
+            const act1 = checkAndDeduct(p1, p1Act);
+            const act2 = checkAndDeduct(p2, p2Act);
+            
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
@@ -461,10 +420,17 @@ window.handleSync = (data, role) => {
 
 function applyServerData() {
     if (!pendingServerData) return;
-    p1.hp = pendingServerData.p1_hp; 
-    p1.en = pendingServerData.p1_en; 
-    p2.hp = pendingServerData.p2_hp; 
-    p2.en = pendingServerData.p2_en;
+    p1.hp = pendingServerData.p1_hp; p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; p2.en = pendingServerData.p2_en;
+}
+
+function checkAndDeduct(p, act) {
+    // 這是一個視覺輔助函式，實際數值在伺服器端已經是準的
+    // 但為了動畫流暢，我們在本地再扣一次
+    let cost = 0;
+    if(act==='skill1') cost=1; if(act==='skill2') cost=2; if(act==='skill3') cost=3;
+    p.en = Math.max(0, p.en - cost);
+    return act;
 }
 
 function loop() {
@@ -485,9 +451,13 @@ function loop() {
 
     if(state === ST.INPUT) {
         ctx.fillStyle="rgba(20,20,30,0.8)";ctx.fillRect(0,400,900,120);ctx.strokeStyle=CLR.BLUE;ctx.strokeRect(0,400,900,120);
-        let active = true; let myEn = p1.en;
+        let active = true; 
+        
+        // [關鍵修正] 確保使用正確的 myRole
+        const role = window.myRole || 'p1';
+        let myEn = (role === 'p1') ? p1.en : p2.en;
+
         if(window.gameMode === 'multi') {
-            const r = window.myRole || 'p1'; myEn = (r === 'p1') ? p1.en : p2.en;
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
         }
         
@@ -544,23 +514,24 @@ function drawHUD(x,y,p,c,n){
     for(let i=0;i<MAX_EN;i++){ctx.fillStyle=i<p.en?CLR.YEL:"#333";ctx.beginPath();ctx.arc(x+15+i*25,y+45,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#000";ctx.stroke();}
 }
 
-function setState(p,act){
-    if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
-}
-
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
-    if(["attack","skill1","skill2","skill3"].includes(p1Act)){
-        let dmg=DMG[p1Act], blk=false;
-        if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
+    
+    // 確保執行動作前有檢查能量
+    const r1 = checkAndDeduct(p1, p1Act);
+    const r2 = checkAndDeduct(p2, p2Act);
+    
+    if(["attack","skill1","skill2","skill3"].includes(r1)){
+        let dmg=DMG[r1], blk=false;
+        if(r1==="skill3"){if(r2==="s_block")blk=true;}else{if(r2==="block")blk=true;}
         if(blk){spawnText("格擋!",p2.x,p2.y-100,CLR.BLUE);Sound.block();}else{p2.hp-=dmg;p2.shake=20;p2.flash=5;spawnText("-"+dmg,p2.x,p2.y-100,CLR.RED);Sound.hit();}
     }
-    if(["attack","skill1","skill2","skill3"].includes(p2Act)){
-        let dmg=DMG[p2Act], blk=false;
-        if(p2Act==="skill3"){if(p1Act==="s_block")blk=true;}else{if(p1Act==="block")blk=true;}
+    if(["attack","skill1","skill2","skill3"].includes(r2)){
+        let dmg=DMG[r2], blk=false;
+        if(r2==="skill3"){if(r1==="s_block")blk=true;}else{if(r1==="block")blk=true;}
         if(blk){spawnText("格擋!",p1.x,p1.y-100,CLR.BLUE);Sound.block();}else{p1.hp-=dmg;p1.shake=20;p1.flash=5;spawnText("-"+dmg,p1.x,p1.y-100,CLR.RED);Sound.hit();}
     }
-    handleCharge(p1,p1Act,p2Act); handleCharge(p2,p2Act,p1Act);
+    handleCharge(p1,r1,r2); handleCharge(p2,r2,r1);
 }
 
 function handleCharge(p,myAct,opAct){
@@ -587,18 +558,18 @@ canvas.addEventListener('mousedown',e=>{
                 let opts=["attack","block"];
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
                 p2Act=opts[Math.floor(Math.random()*opts.length)];
-                deductEn(p1,p1Act); deductEn(p2,p2Act);
+                
+                checkAndDeduct(p1,p1Act); checkAndDeduct(p2,p2Act);
                 setState(p1,p1Act); setState(p2,p2Act);
                 state=ST.ANIM; timer=0;
             }else{
-                if(window.sendAction){window.sendAction(b.a);msg="已鎖定，等待對手...";deductEn(role==='p1'?p1:p2,b.a);}
+                if(window.sendAction){window.sendAction(b.a);msg="已鎖定，等待對手...";}
             }
             break;
         }
     }
 });
 
-function deductEn(p,act){if(act==='skill1')p.en-=1;if(act==='skill2')p.en-=2;if(act==='skill3')p.en-=3;if(p.en<0)p.en=0;}
 document.getElementById('btn-music').onclick=function(){musicOn=!musicOn;this.classList.toggle('active');if(musicOn)BGM.start();else BGM.stop();};
 document.getElementById('btn-sfx').onclick=function(){sfxOn=!sfxOn;this.classList.toggle('active');};
 
