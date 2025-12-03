@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Final Fixed</title>
+    <title>Cyberpunk Boxing: Replay Fixed</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -86,7 +86,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.2 Perfect Sync</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.3 Replay Fix</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -140,7 +140,6 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
-    // [投降功能]
     window.confirmSurrender = function() {
         if (!confirm("確定要投降嗎？")) return;
         if (window.gameMode === 'multi') {
@@ -262,7 +261,13 @@
 
             window.resetRoom = async () => {
                 if(!currentRoomId) return;
-                await updateDoc(getRef(currentRoomId), { p1_hp: 100, p1_en: 0, p2_hp: 100, p2_en: 0, p1_act: null, p2_act: null, status: 'playing', ts: Date.now() });
+                await updateDoc(getRef(currentRoomId), { 
+                    p1_hp: 100, p1_en: 0, 
+                    p2_hp: 100, p2_en: 0, 
+                    p1_act: null, p2_act: null, 
+                    status: 'playing', 
+                    ts: Date.now() 
+                });
             };
         } catch (e) { 
             console.error("Firebase Init Error:", e);
@@ -339,11 +344,16 @@ window.startGame = (m) => {
     p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
     p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
     particles=[]; floatingTexts=[];
+    pendingServerData = null;
     state = ST.INPUT;
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
     if(m === 'single') { msg = "單人模式：請下指令"; document.getElementById('room-info').style.display = 'none'; }
-    else { msg = "連線成功！等待雙方出招"; const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; }
+    else { 
+        // [Fix] 修改初始文字，避免觸發「等待」關鍵字鎖定
+        msg = "連線成功！請選擇行動"; 
+        const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; 
+    }
 };
 
 window.restartGame = () => {
@@ -352,18 +362,16 @@ window.restartGame = () => {
     else { startGame('single'); }
 };
 
-// [關鍵] 完美同步邏輯 v7.2
 window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // [Fix] 偵測重置
+    // [Fix] 偵測重置：如果雙方血量回滿，強制重啟遊戲
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi');
         return;
     }
     
-    // [Fix] 投降同步邏輯
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -376,11 +384,7 @@ window.handleSync = (data, role) => {
 
     pendingServerData = data;
 
-    // 只有在 INPUT 狀態才同步數值，防止動畫中被覆蓋
-    if (state === ST.INPUT) {
-        p1.hp = data.p1_hp; p1.en = data.p1_en;
-        p2.hp = data.p2_hp; p2.en = data.p2_en;
-    }
+    if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
@@ -398,6 +402,14 @@ window.handleSync = (data, role) => {
         }
     }
 };
+
+function applyServerData() {
+    if (!pendingServerData) return;
+    p1.hp = pendingServerData.p1_hp; 
+    p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; 
+    p2.en = pendingServerData.p2_en;
+}
 
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
@@ -420,7 +432,8 @@ function loop() {
         let active = true; let myEn = p1.en;
         if(window.gameMode === 'multi') {
             const r = window.myRole || 'p1'; myEn = (r === 'p1') ? p1.en : p2.en;
-            if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
+            // [Fix] 更新鎖定關鍵字
+            if(msg.includes("等待對手") || msg.includes("已鎖定")) active = false;
         }
         
         let anyHover = false;
@@ -446,13 +459,7 @@ function loop() {
                 state = ST.INPUT; msg = "下一回合";
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
-            // 客戶端：應用最新的伺服器數值
-            if(window.gameMode === 'multi' && pendingServerData) {
-                p1.hp = pendingServerData.p1_hp; 
-                p1.en = pendingServerData.p1_en; 
-                p2.hp = pendingServerData.p2_hp; 
-                p2.en = pendingServerData.p2_en;
-            }
+            if(window.gameMode === 'multi') applyServerData();
         }
     }
 
