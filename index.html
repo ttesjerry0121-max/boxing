@@ -3,77 +3,95 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v11.3 Timer Fix</title>
+    <title>Cyberpunk Boxing: v11.1 UI Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
         body {
             margin: 0; padding: 0; background-color: #050510;
-            background: linear-gradient(rgba(0, 10, 20, 0.8), rgba(0, 5, 10, 0.9)),
-                url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2062&auto=format&fit=crop');
+            background: linear-gradient(rgba(20, 0, 40, 0.7), rgba(0, 0, 20, 0.9)), url('https://images.unsplash.com/photo-1555680202-c86f0e12f086?q=80&w=2070&auto=format&fit=crop');
             background-size: cover; background-position: center;
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
         }
+        /* CRT 特效 */
+        body::after {
+            content: ""; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 2px, 3px 100%; pointer-events: none; z-index: 999;
+        }
         #game-wrapper {
             position: relative; width: 900px; height: 600px;
-            box-shadow: 0 0 60px rgba(0,255,255,0.2), 0 0 20px #000; 
-            border: 2px solid #333; 
-            background: rgba(0, 0, 0, 0.7); 
-            backdrop-filter: blur(3px);
+            box-shadow: 0 0 20px rgba(0,255,255,0.3), 0 0 60px rgba(255,0,255,0.1);
+            border: 1px solid rgba(0, 255, 255, 0.3); background: rgba(10, 10, 16, 0.75);
+            backdrop-filter: blur(8px); border-radius: 10px; overflow: hidden;
         }
         canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         
         .ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5,5,10,0.92); display: flex; flex-direction: column;
+            background: rgba(5,5,15,0.85); display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 50; transition: opacity 0.3s;
+            backdrop-filter: blur(5px);
         }
         .hidden { opacity: 0; pointer-events: none; z-index: -1; }
         
-        h1 { color: #0ff; font-size: 56px; margin: 0 0 10px 0; text-shadow: 0 0 20px #0ff; text-align: center; }
-        h2 { font-size: 20px; color: #aaa; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 5px; }
+        h1 { color: #fff; font-size: 64px; margin: 0 0 10px 0; text-shadow: 0 0 10px #0ff; text-align: center; letter-spacing: 4px; font-style: italic; }
+        h2 { font-size: 18px; color: #0ff; margin-bottom: 40px; letter-spacing: 8px; }
         
         .btn-menu {
-            background: rgba(0,255,255,0.1); border: 2px solid #0ff; color: #0ff;
-            padding: 15px 40px; font-size: 20px; font-weight: bold; margin: 10px; cursor: pointer; width: 280px;
-            transition: all 0.2s; font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
+            border: 1px solid #0ff; color: #fff; padding: 15px 60px; font-size: 22px; font-weight: bold; margin: 10px; cursor: pointer; width: 320px;
+            transition: all 0.2s; font-family: 'Noto Sans TC', sans-serif; text-shadow: 0 0 5px #0ff; box-shadow: 0 0 10px rgba(0,255,255,0.1);
+            clip-path: polygon(10px 0, 100% 0, 100% calc(100% - 10px), calc(100% - 10px) 100%, 0 100%, 0 10px);
         }
-        .btn-menu:hover:not(:disabled) { background: #0ff; color: #000; box-shadow: 0 0 30px rgba(0,255,255,0.6); transform: translateY(-2px); }
+        .btn-menu:hover:not(:disabled) { background: #0ff; color: #000; text-shadow: none; box-shadow: 0 0 30px #0ff; transform: scale(1.02); }
         .btn-menu:disabled { border-color: #444; color: #666; cursor: not-allowed; }
+        .btn-secondary { border-color: #888; color: #aaa; text-shadow: none; }
+        .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
-        .btn-secondary { border-color: #555; color: #aaa; background: transparent; }
-        .btn-secondary:hover { border-color: #fff; color: #fff; }
-        
+        /* 頂部列 */
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
-            display: flex; justify-content: space-between; align-items: center; z-index: 100; pointer-events: none;
+            display: flex; justify-content: space-between; align-items: center; 
+            z-index: 1000; pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
         }
         .top-btn {
-            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #888;
-            padding: 5px 12px; font-size: 12px; cursor: pointer; margin-left: 5px;
+            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #aaa;
+            padding: 6px 15px; font-size: 12px; cursor: pointer; margin-left: 8px; border-radius: 4px;
+            transition: 0.2s;
         }
-        .top-btn.active { border-color: #0ff; color: #0ff; }
-        .btn-surrender { border-color: #ff3232; color: #ff3232; }
-        .btn-surrender:hover { background: #ff3232; color: #fff; }
+        .top-btn:hover { border-color: #fff; color: #fff; }
+        .top-btn.active { border-color: #0ff; color: #0ff; box-shadow: 0 0 8px rgba(0,255,255,0.3); }
+        
+        .btn-surrender { border-color: #ff3232; color: #ff3232; pointer-events: all !important; z-index: 99999 !important; position: relative; }
+        .btn-surrender:hover { background: #ff3232; color: #fff; box-shadow: 0 0 15px #f00; }
 
-        .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #333; padding: 5px 15px; border-radius: 20px; font-size: 12px; color: #888; }
-        .status-pill.online { border-color: #0f0; color: #0f0; }
+        .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #555; padding: 6px 20px; border-radius: 4px; font-size: 14px; color: #aaa; letter-spacing: 1px; pointer-events: auto; }
+        .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
-        .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 24px; text-align: center; width: 150px; padding: 5px; }
-        .room-code-display { font-size: 60px; color: #ffe600; font-weight: bold; margin: 20px; }
+        .input-code { background: rgba(0,0,0,0.5); border: 1px solid #0ff; color: #0ff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; }
+        .room-code-display { font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; }
         
-        .rules-card { border: 1px solid #ffe600; background: rgba(20,20,25,0.95); padding: 30px; max-width: 600px; width: 90%; }
-        .rule-item { margin-bottom: 15px; border-left: 3px solid #ffe600; padding-left: 10px; text-align: left; }
-        .highlight { color: #fff; font-weight: bold; }
+        .rules-card { border: 1px solid #0ff; background: rgba(10, 15, 20, 0.98); padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 0 50px rgba(0,255,255,0.2); }
+        .rule-item { margin-bottom: 25px; border-left: 4px solid #ffe600; padding-left: 15px; text-align: left; }
+        .highlight { color: #fff; font-weight: bold; text-shadow: 0 0 5px rgba(255,255,255,0.5); }
         
-        #restart-status { color: #ffe600; font-size: 14px; margin-top: 10px; height: 20px; }
+        #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
+        
+        /* [修正] 身分標示樣式優化 */
         #player-badge { 
-            position: absolute; top: 85px; left: 20px; 
+            position: absolute; 
+            /* y=145px 確保在能量條下方 */
+            top: 145px; 
+            /* 預設左邊，會在 JS 動態調整 */
+            left: 20px; 
             background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; 
-            padding: 5px 10px; font-size: 12px; display: none; pointer-events: none; 
-            border-radius: 5px;
-            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+            padding: 6px 12px; font-size: 14px; display: none; pointer-events: none; 
+            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
+            font-weight: bold; letter-spacing: 1px;
+            z-index: 20;
         }
     </style>
 </head>
@@ -82,45 +100,48 @@
 <div id="game-wrapper">
     <div class="top-bar">
         <div style="display:flex; gap:10px;">
-            <div id="connection-status" class="status-pill offline">離線模式</div>
+            <div id="connection-status" class="status-pill offline">系統離線</div>
             <div class="status-pill" id="room-info" style="display:none;"></div>
         </div>
         <div style="pointer-events: auto; display: flex; gap: 5px;">
-            <button id="btn-surrender" class="top-btn btn-surrender hidden" onclick="confirmSurrender()">🏳️ 投降</button>
+            <button id="btn-surrender" class="top-btn btn-surrender hidden">🏳️ 投降 (Surrender)</button>
             <button class="top-btn" onclick="toggleRules()">❓ 規則</button>
             <button id="btn-music" class="top-btn active">🎵 BGM</button>
             <button id="btn-sfx" class="top-btn active">🔊 SFX</button>
         </div>
     </div>
     
+    <!-- P1/P2 標籤 -->
     <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
     <div id="ui-menu" class="ui-layer">
         <h1>CYBERPUNK BOXING</h1>
-        <h2>NEON STRIKE ARENA</h2>
-        <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
-        <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
-        <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.3 Timer Fixed</div>
+        <h2>NEON CITY ARENA</h2>
+        <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
+        <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
+        <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.1 UI Fixed</div>
     </div>
 
     <!-- UI: 大廳 -->
     <div id="ui-lobby" class="ui-layer hidden">
         <h1>BATTLE LOBBY</h1>
         <div id="lobby-main">
-            <button class="btn-menu" onclick="window.createRoom()">建立房間</button>
-            <div style="margin:10px; color:#666;">- OR -</div>
+            <button class="btn-menu" onclick="window.createRoom()">建立房間 (HOST)</button>
+            <div style="margin:15px; color:#888; font-size:14px;">— 或輸入代碼加入 —</div>
             <input type="number" id="room-input" class="input-code" placeholder="0000" maxlength="4">
             <br><br>
-            <button class="btn-menu" onclick="window.joinRoom()">加入戰局</button>
+            <button class="btn-menu" onclick="window.joinRoom()">加入戰局 (JOIN)</button>
             <br><br>
-            <button class="btn-menu btn-secondary" onclick="showMenu()">返回</button>
+            <button class="btn-menu btn-secondary" onclick="showMenu()">返回主選單</button>
         </div>
         <div id="lobby-wait" class="hidden" style="text-align: center;">
-            <div style="color:#0ff;">WAITING FOR OPPONENT</div>
+            <div style="color:#0ff; letter-spacing:2px; font-size:14px;">WAITING FOR OPPONENT</div>
             <div id="room-code-display" class="room-code-display">----</div>
-            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消</button>
+            <p style="color:#aaa; font-size:14px;">請將代碼分享給對手</p>
+            <br>
+            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消連線</button>
         </div>
     </div>
 
@@ -128,18 +149,34 @@
     <div id="ui-rules" class="ui-layer hidden">
         <div class="rules-card">
             <h2 style="color:#ffe600; text-align:center;">戰鬥手冊</h2>
-            <div class="rule-item"><div style="color:#ffe600;font-weight:bold;">🔵 普通防禦</div><div style="color:#ccc;">擋住 <span class="highlight">普攻、技1、技2</span>。<br>⚠️ 擋不住 [技3]。</div></div>
-            <div class="rule-item"><div style="color:#ffe600;font-weight:bold;">🟣 超級防守</div><div style="color:#ccc;">專門擋 <span class="highlight">技3 (大招)</span>。<br>⚠️ 擋不住其他攻擊。</div></div>
-            <div class="rule-item"><div style="color:#ffe600;font-weight:bold;">⚡ 集氣</div><div style="color:#ccc;">被 <span class="highlight">技能</span> 擊中會中斷。<br>被普攻打中不會斷。</div></div>
-            <div class="rule-item"><div style="color:#fff;font-weight:bold;">⏱️ 限時</div><div style="color:#ccc;">多人對戰每回合 <span class="highlight">15秒</span>，時間到自動出招。</div></div>
-            <div style="text-align:center; margin-top:20px;"><button class="btn-menu" onclick="toggleRules()">OK</button></div>
+            <div class="rule-item">
+                <div style="color:#0ff;font-weight:bold;font-size:18px;">🔵 普通防禦 (Block)</div>
+                <div style="color:#ddd; margin-top:5px;">可抵擋 <span class="highlight">普攻、技1、技2</span>。<br><span style="color:#ff5555">⚠️ 弱點：擋不住 [技3] 大招。</span></div>
+            </div>
+            <div class="rule-item">
+                <div style="color:#b400ff;font-weight:bold;font-size:18px;">🟣 超級防守 (Super Block)</div>
+                <div style="color:#ddd; margin-top:5px;">專門抵擋 <span class="highlight">技3 (終極崩壞)</span>。<br><span style="color:#ff5555">⚠️ 弱點：對其他所有攻擊無效。</span></div>
+            </div>
+            <div class="rule-item">
+                <div style="color:#ffe600;font-weight:bold;font-size:18px;">⚡ 集氣機制 (Charge)</div>
+                <div style="color:#ddd; margin-top:5px;">能量 +1。若被 <span class="highlight">技能</span> 擊中會中斷。<br>被 <span class="highlight">普攻</span> 擊中則不會中斷 (硬扛)。</div>
+            </div>
+            <div class="rule-item">
+                <div style="color:#fff;font-weight:bold;font-size:18px;">⏱️ 限時機制</div>
+                <div style="color:#ddd; margin-top:5px;">多人對戰每回合 <span class="highlight">15秒</span>，逾時將自動隨機出招。</div>
+            </div>
+            <div style="text-align:center; margin-top:40px;">
+                <button class="btn-menu" onclick="toggleRules()">我準備好了</button>
+            </div>
         </div>
     </div>
 
     <!-- UI: 結算 -->
-    <div id="ui-result" class="ui-layer hidden" style="background: rgba(0,0,0,0.85);">
-        <h1 id="result-title">YOU WIN</h1>
-        <button id="btn-restart" class="btn-menu" onclick="requestRestart()">再來一局</button>
+    <div id="ui-result" class="ui-layer hidden" style="background: rgba(0,0,0,0.9);">
+        <h1 id="result-title" style="font-size: 80px;">YOU WIN</h1>
+        <div id="result-desc" style="color:#aaa; margin-bottom:40px;">BATTLE FINISHED</div>
+        
+        <button id="btn-restart" class="btn-menu" onclick="window.requestRestart()">再來一局</button>
         <div id="restart-status"></div>
         <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">離開房間</button>
     </div>
@@ -153,17 +190,16 @@
     const MAX_EN = 8;
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
-    const TURN_TIME = 15; // [設定] 15秒回合
+    const TURN_LIMIT = 15; 
 
     function showMenu() { document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden')); document.getElementById('ui-menu').classList.remove('hidden'); }
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
     window.leaveRoom = function() { location.reload(); };
-    window.requestRestart = function() { restartGameLocal(); };
-
+    
     window.confirmSurrender = function() {
-        if (!confirm("確定要投降嗎？")) return;
+        if (!confirm("確定要投降嗎？ (Surrender?)")) return;
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
@@ -188,6 +224,8 @@
     window.gameMode = 'single';
     window.currentRoomId = null;
     window.myRole = 'p1';
+    
+    window.requestRestart = function(){ restartGameLocal(); }; 
 </script>
 
 <!-- Firebase 連線 -->
@@ -309,11 +347,6 @@
                     ts: Date.now() 
                 });
             };
-
-            window.resetRoom = async () => {
-                if(window.myRole !== 'p1') return;
-                await updateDoc(getRef(window.currentRoomId), { p1_hp: 100, p1_en: 0, p2_hp: 100, p2_en: 0, p1_act: null, p2_act: null, status: 'playing', ts: Date.now() });
-            };
         } catch (e) { 
             console.error("Firebase Init Error:", e);
             document.getElementById('connection-status').innerText = "連線失敗";
@@ -329,31 +362,53 @@ const ctx = canvas.getContext('2d');
 let actx, musicOn=true, sfxOn=true;
 function initSfx() { if(!actx) actx = new AudioContext(); if(actx.state==='suspended') actx.resume(); }
 const Sound = {
-    play: (f,t,d,v=0.1) => { if(!sfxOn||!actx)return; const o=actx.createOscillator(), g=actx.createGain(); o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+d); },
-    click: ()=>Sound.play(800,'square',0.1,0.05),
-    hit: ()=>Sound.play(100,'sawtooth',0.2,0.2),
-    heavy: ()=>Sound.play(60,'square',0.4,0.3),
-    block: ()=>Sound.play(1200,'triangle',0.2,0.1),
-    sBlock: ()=>Sound.play(200,'sawtooth',0.4,0.2),
-    charge: ()=>Sound.play(400,'sine',0.3,0.1),
-    win: ()=>Sound.play(600,'square',0.5,0.2)
+    play: (f,t,d,v=0.1) => { 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(), g=actx.createGain(); 
+        o.type=t; o.frequency.setValueAtTime(f, actx.currentTime);
+        g.gain.setValueAtTime(v, actx.currentTime); 
+        g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); 
+        o.connect(g); g.connect(actx.destination); 
+        o.start(); o.stop(actx.currentTime+d); 
+    },
+    click: ()=>Sound.play(800,'square',0.05,0.05),
+    hit: ()=>{ Sound.play(150,'sawtooth',0.2,0.3); Sound.play(50,'square',0.3,0.3); },
+    heavy: ()=>{ Sound.play(80,'square',0.5,0.5); Sound.play(40,'sawtooth',0.6,0.5); },
+    block: ()=>Sound.play(2000,'triangle',0.1,0.2),
+    sBlock: ()=>Sound.play(300,'sine',0.6,0.3),
+    charge: ()=>{ 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(),g=actx.createGain();
+        o.frequency.setValueAtTime(200,actx.currentTime);
+        o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);
+        g.gain.setValueAtTime(0.1,actx.currentTime);
+        g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);
+        o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); 
+    },
+    win: ()=> { if(!sfxOn)return; [523,659,783,1046].forEach((f,i)=>setTimeout(()=>Sound.play(f,'square',0.3,0.2),i*150)); },
+    lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
+
+// BGM v4.0 (經典版)
 const BGM = {
     on: false, t: null,
     start: function(){ if(this.on||!musicOn)return; initSfx(); this.on=true; this.loop(); },
     stop: function(){ this.on=false; clearTimeout(this.t); },
-    loop: function(){ if(!this.on)return; if(actx && sfxOn) Sound.play(80,'sawtooth',0.1,0.05); this.t=setTimeout(()=>this.loop(), 500); }
+    loop: function(){ 
+        if(!this.on)return; 
+        if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); 
+        this.t=setTimeout(()=>this.loop(), 500); 
+    }
 };
 
 let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
+let turnTimer = TURN_LIMIT;
 const ST = { INPUT:0, ANIM:1, RESOLVE:2, OVER:3 };
 let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
 let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
 let pendingServerData = null;
-// [新增] 回合倒數計時相關
-let turnStartTime = 0;
 
 class Btn {
     constructor(t,x,y,c,a,cost=0){this.t=t;this.r={x,y,w:100,h:50};this.c=c;this.a=a;this.cost=cost;}
@@ -394,6 +449,17 @@ const BTNS = [
 
 window.gameMode = 'single';
 
+// [修復] 確保所有全域函式都定義
+window.restartGameLocal = () => { startGame('single'); };
+window.confirmSurrender = function() {
+    if (!confirm("確定要投降嗎？")) return;
+    if (window.gameMode === 'multi') {
+        if (window.sendSurrender) window.sendSurrender();
+    } else {
+        p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
+    }
+};
+
 window.startGame = (m) => {
     initSfx(); BGM.start(); Sound.click();
     window.gameMode = m;
@@ -402,7 +468,7 @@ window.startGame = (m) => {
     particles=[]; floatingTexts=[];
     pendingServerData = null;
     state = ST.INPUT;
-    turnStartTime = Date.now(); // [Init]
+    turnTimer = TURN_LIMIT;
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
@@ -419,29 +485,45 @@ window.startGame = (m) => {
     } else { 
         msg = "連線成功！請選擇行動"; 
         const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`;
-        const badge = document.getElementById('player-badge'); badge.style.display = 'block';
+        
+        // [更新] 根據身份動態調整標籤位置
+        const badge = document.getElementById('player-badge'); 
+        badge.style.display = 'block';
         badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
         badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
+        
+        if(window.myRole === 'p1') {
+            badge.style.left = '20px'; badge.style.right = 'auto';
+        } else {
+            badge.style.right = '20px'; badge.style.left = 'auto';
+        }
     }
 };
 
-window.restartGameLocal = () => { startGame('single'); };
+window.restartGame = () => {
+    document.getElementById('ui-result').classList.add('hidden');
+    if(window.gameMode === 'multi' && window.resetRoom) window.resetRoom();
+    else { startGame('single'); }
+};
 
 window.handleSync = (data, role) => {
     if (data.status === 'closed') { alert("對方已離開遊戲"); location.reload(); return; }
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
+    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
+    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -450,20 +532,8 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
-
-    // [Fix] 回合重置偵測：若雙方動作為空，且之前不是 INPUT，則切換並重置時間
-    if (!data.p1_act && !data.p2_act) {
-        if (state !== ST.INPUT && state !== ST.ANIM && state !== ST.RESOLVE && state !== ST.OVER) {
-             // 這裡其實已經被下面的 else block 覆蓋，但在 handleSync 收到清空訊號時
-             // 我們應該重置計時器
-        }
-        
-        // 若處於 INPUT 狀態，且剛收到清空資料（新回合），重置計時
-        // 簡單做法：每次 handleSync 發現是 input 階段且沒有動作，如果不等於上次時間，重置
-        // 這裡簡化：在 loop 裡面計算
-        
-        applyServerData();
-    }
+    if (!data.p1_act && !data.p2_act) applyServerData();
+    if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
@@ -475,14 +545,13 @@ window.handleSync = (data, role) => {
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
-            // 進入新回合
-            if (state !== ST.INPUT) {
-                state = ST.INPUT;
-                turnStartTime = Date.now(); // [Fix] 重置計時器
-            }
-            
+            state = ST.INPUT;
             p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
+            if(!myAct) {
+                 msg = "你的回合：請選擇行動"; 
+                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
+            }
+            else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -508,7 +577,7 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
-// 自動出招
+// [新增] 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -538,19 +607,20 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix] 使用絕對時間差計算
-            const elapsed = (Date.now() - turnStartTime) / 1000;
-            const timeLeft = Math.max(0, 15 - elapsed);
-            
-            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
-            ctx.font = "bold 40px Orbitron";
-            ctx.textAlign = "center";
-            // [調整] 計時器位置：中央偏上
-            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
-            
-            if (timeLeft <= 0 && active) {
-                let autoAct = autoPickMove(role==='p1'?p1:p2);
-                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+            // [新增] 多人模式倒數計時
+            if (active && turnTimer > 0) {
+                turnTimer -= 1/60;
+                ctx.fillStyle = turnTimer <= 5 ? "#ff3333" : "#ffe600";
+                ctx.font = "bold 40px Orbitron";
+                ctx.textAlign = "center";
+                // [調整] 計時器位置：中央偏上
+                ctx.fillText(Math.ceil(turnTimer), 450, 130); 
+                
+                if (turnTimer <= 0) {
+                    // 時間到，自動出招
+                    let autoAct = autoPickMove(role==='p1'?p1:p2);
+                    if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+                }
             }
         }
         
@@ -561,6 +631,7 @@ function loop() {
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { 
+        turnTimer = TURN_LIMIT; // 重置計時
         timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
     }
     else if(state === ST.RESOLVE) {
@@ -576,19 +647,16 @@ function loop() {
                 document.getElementById('ui-result').classList.remove('hidden');
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
-                // 準備進入下回合
-                state = ST.INPUT; 
-                msg = "下一回合";
-                turnStartTime = Date.now(); // 重置計時器 (單機/Host)
+                state = ST.INPUT; msg = "下一回合";
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
         }
     }
 
-    // [Layout Fix] HUD 畫在 y=80
+    // [Layout Fix] HUD 畫在下面一點 (80)
     drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40);
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); // 訊息放上面
     requestAnimationFrame(loop);
 }
 
@@ -642,7 +710,7 @@ function spawnParts(x,y,c){for(let i=0;i<10;i++)fx.push({x:x,y:y,vy:(Math.random
 function spawnText(t,x,y,c,s=1){txts.push({t:t,x:x,y:y,c:c,life:50});}
 
 canvas.addEventListener('mousemove',e=>{ mouse = getMousePos(e); });
-// 投降綁定
+// [重要] 綁定投降按鈕
 document.getElementById('btn-surrender').addEventListener('click', (e) => {
     e.stopPropagation(); 
     window.confirmSurrender();
