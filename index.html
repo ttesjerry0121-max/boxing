@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Final Sync</title>
+    <title>Cyberpunk Boxing: Neon Arena</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -68,7 +68,7 @@
 <div id="game-wrapper">
     <div class="top-bar">
         <div style="display:flex; gap:10px;">
-            <div id="connection-status" class="status-pill offline">離線模式 (Single Player)</div>
+            <div id="connection-status" class="status-pill offline">連線中...</div>
             <div class="status-pill" id="room-info" style="display:none;"></div>
         </div>
         <div style="pointer-events: auto; display: flex; gap: 5px;">
@@ -84,9 +84,9 @@
         <h1>CYBERPUNK BOXING</h1>
         <h2>NEON STRIKE ARENA</h2>
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
-        <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
+        <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.4 Final Sync</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v8.0 Release</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -104,7 +104,7 @@
         <div id="lobby-wait" class="hidden" style="text-align: center;">
             <div style="color:#0ff;">WAITING FOR OPPONENT</div>
             <div id="room-code-display" class="room-code-display">----</div>
-            <button class="btn-menu btn-secondary" onclick="location.reload()">取消</button>
+            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消</button>
         </div>
     </div>
 
@@ -140,7 +140,7 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
-    // 離線模式的離開函式 (預設)
+    // 預設離開函式 (如果 Firebase 未載入)
     window.leaveRoom = function() { location.reload(); };
 
     window.confirmSurrender = function() {
@@ -169,6 +169,7 @@
 
 <!-- Firebase 連線 -->
 <script type="module">
+    // 使用您的專屬設定
     const myFirebaseConfig = {
       apiKey: "AIzaSyDxEuqX6VZC9eqmEk5Sp6jgynMxDm2U8Cg",
       authDomain: "boxing-game-1f009.firebaseapp.com",
@@ -241,12 +242,10 @@
                 onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), myRole); });
             }
 
-            // [新增] 離開房間函式 - 通知對方並重整
+            // 離開房間
             window.leaveRoom = async () => {
                 if (currentRoomId) {
-                    try {
-                        await updateDoc(getRef(currentRoomId), { status: 'closed' });
-                    } catch(e) { console.error(e); }
+                    try { await updateDoc(getRef(currentRoomId), { status: 'closed' }); } catch(e) {}
                 }
                 location.reload();
             };
@@ -274,6 +273,7 @@
 
             window.resetRoom = async () => {
                 if(!currentRoomId) return;
+                // 雙方皆可重置
                 await updateDoc(getRef(currentRoomId), { 
                     p1_hp: 100, p1_en: 0, 
                     p2_hp: 100, p2_en: 0, 
@@ -372,35 +372,24 @@ window.restartGame = () => {
 };
 
 window.handleSync = (data, role) => {
-    // [Fix] 對方離開偵測
-    if (data.status === 'closed') {
-        alert("對方已離開遊戲");
-        location.reload();
-        return;
-    }
-
+    if (data.status === 'closed') { alert("對方已離開遊戲"); location.reload(); return; }
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // 偵測重置
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
-        startGame('multi');
-        return;
+        startGame('multi'); return;
     }
     
-    // 投降同步
+    // 投降偵測
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.RESOLVE; 
-        timer = 100; 
-        p1Act = 'idle'; p2Act = 'idle'; 
-        msg = "戰鬥結束！";
+        state = ST.RESOLVE; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "戰鬥結束！";
         return;
     }
 
     pendingServerData = data;
-
     if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
@@ -422,10 +411,8 @@ window.handleSync = (data, role) => {
 
 function applyServerData() {
     if (!pendingServerData) return;
-    p1.hp = pendingServerData.p1_hp; 
-    p1.en = pendingServerData.p1_en; 
-    p2.hp = pendingServerData.p2_hp; 
-    p2.en = pendingServerData.p2_en;
+    p1.hp = pendingServerData.p1_hp; p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; p2.en = pendingServerData.p2_en;
 }
 
 function loop() {
@@ -451,11 +438,8 @@ function loop() {
             const r = window.myRole || 'p1'; myEn = (r === 'p1') ? p1.en : p2.en;
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
         }
-        
         let anyHover = false;
-        BTNS.forEach(b => {
-            if(b.draw(myEn, active)) anyHover = true;
-        });
+        BTNS.forEach(b => { if(b.draw(myEn, active)) anyHover = true; });
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } }
