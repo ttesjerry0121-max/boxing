@@ -3,13 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v12.0 Final</title>
+    <title>Cyberpunk Boxing: v12.1 Timer Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
         body {
             margin: 0; padding: 0; background-color: #050510;
-            background: linear-gradient(rgba(20, 0, 40, 0.7), rgba(0, 0, 20, 0.9)), url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2062&auto=format&fit=crop');
+            background: linear-gradient(rgba(0, 10, 20, 0.8), rgba(0, 5, 10, 0.9)),
+                url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2062&auto=format&fit=crop');
             background-size: cover; background-position: center;
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
@@ -31,7 +32,7 @@
         .hidden { opacity: 0; pointer-events: none; z-index: -1; }
         
         h1 { color: #0ff; font-size: 56px; margin: 0 0 10px 0; text-shadow: 0 0 20px #0ff; text-align: center; letter-spacing: 4px; font-style: italic; }
-        h2 { font-size: 20px; color: #aaa; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 5px; }
+        h2 { font-size: 18px; color: #0ff; margin-bottom: 40px; letter-spacing: 8px; }
         
         .btn-menu {
             background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
@@ -64,7 +65,7 @@
         .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #333; padding: 5px 15px; border-radius: 20px; font-size: 12px; color: #888; letter-spacing: 1px; pointer-events: auto; }
         .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
-        .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; }
+        .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 24px; text-align: center; width: 150px; padding: 5px; }
         .room-code-display { font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; }
         
         .rules-card { border: 1px solid #0ff; background: rgba(10, 15, 20, 0.98); padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 0 50px rgba(0,255,255,0.2); }
@@ -101,7 +102,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v12.0 Timer Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v12.1 Realtime Fix</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -128,7 +129,7 @@
     <!-- UI: 規則 -->
     <div id="ui-rules" class="ui-layer hidden">
         <div class="rules-card">
-            <h2 style="color:#ffe600; text-align:center; margin-bottom:30px; text-shadow:0 0 10px #ffe600;">戰鬥手冊</h2>
+            <h2 style="color:#ffe600; text-align:center;">戰鬥手冊</h2>
             <div class="rule-item">
                 <div style="color:#0ff;font-weight:bold;font-size:18px;">🔵 普通防禦 (Block)</div>
                 <div style="color:#ddd; margin-top:5px;">可抵擋 <span class="highlight">普攻、技1、技2</span>。<br><span style="color:#ff5555">⚠️ 弱點：擋不住 [技3] 大招。</span></div>
@@ -170,8 +171,7 @@
     const MAX_EN = 8;
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
-    const TURN_LIMIT = 15;
-    let turnStartTime = 0; // [新增] 真實時間戳記
+    const TURN_LIMIT = 15; // 15秒限制
 
     function showMenu() { document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden')); document.getElementById('ui-menu').classList.remove('hidden'); }
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
@@ -205,6 +205,7 @@
     window.gameMode = 'single';
     window.currentRoomId = null;
     window.myRole = 'p1';
+    window.turnStartTime = 0; // 全域時間戳記
     
     window.requestRestart = function(){ restartGameLocal(); }; 
 </script>
@@ -343,17 +344,34 @@ const ctx = canvas.getContext('2d');
 let actx, musicOn=true, sfxOn=true;
 function initSfx() { if(!actx) actx = new AudioContext(); if(actx.state==='suspended') actx.resume(); }
 const Sound = {
-    play: (f,t,d,v=0.1) => { if(!sfxOn||!actx)return; const o=actx.createOscillator(), g=actx.createGain(); o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+d); },
+    play: (f,t,d,v=0.1) => { 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(), g=actx.createGain(); 
+        o.type=t; o.frequency.setValueAtTime(f, actx.currentTime);
+        g.gain.setValueAtTime(v, actx.currentTime); 
+        g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); 
+        o.connect(g); g.connect(actx.destination); 
+        o.start(); o.stop(actx.currentTime+d); 
+    },
     click: ()=>Sound.play(800,'square',0.05,0.05),
     hit: ()=>{ Sound.play(150,'sawtooth',0.2,0.3); Sound.play(50,'square',0.3,0.3); },
     heavy: ()=>{ Sound.play(80,'square',0.5,0.5); Sound.play(40,'sawtooth',0.6,0.5); },
     block: ()=>Sound.play(2000,'triangle',0.1,0.2),
     sBlock: ()=>Sound.play(300,'sine',0.6,0.3),
-    charge: ()=>{ if(!sfxOn||!actx)return; const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(200,actx.currentTime);o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);g.gain.setValueAtTime(0.1,actx.currentTime);g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); },
+    charge: ()=>{ 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(),g=actx.createGain();
+        o.frequency.setValueAtTime(200,actx.currentTime);
+        o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);
+        g.gain.setValueAtTime(0.1,actx.currentTime);
+        g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);
+        o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); 
+    },
     win: ()=> { if(!sfxOn)return; [523,659,783,1046].forEach((f,i)=>setTimeout(()=>Sound.play(f,'square',0.3,0.2),i*150)); },
     lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
 
+// BGM v4.0 (經典版)
 const BGM = {
     on: false, t: null,
     start: function(){ if(this.on||!musicOn)return; initSfx(); this.on=true; this.loop(); },
@@ -366,7 +384,6 @@ const BGM = {
 };
 
 let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
-let turnTimer = TURN_LIMIT;
 const ST = { INPUT:0, ANIM:1, RESOLVE:2, OVER:3 };
 let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
@@ -413,6 +430,7 @@ const BTNS = [
 
 window.gameMode = 'single';
 
+// [修復] 確保所有全域函式都定義
 window.restartGameLocal = () => { startGame('single'); };
 window.confirmSurrender = function() {
     if (!confirm("確定要投降嗎？")) return;
@@ -431,7 +449,7 @@ window.startGame = (m) => {
     particles=[]; floatingTexts=[];
     pendingServerData = null;
     state = ST.INPUT;
-    turnTimer = TURN_LIMIT;
+    window.turnStartTime = Date.now(); // 重置計時
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
@@ -471,16 +489,19 @@ window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
+    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
+    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -489,6 +510,7 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
+    // [Fix v11.5] 確保正確同步
     if (!data.p1_act && !data.p2_act) applyServerData();
     if (state === ST.INPUT) applyServerData();
 
@@ -496,18 +518,29 @@ window.handleSync = (data, role) => {
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
+            
+            // [Fix v11.5] 確保在扣除能量前，能量值是正確的 (來自伺服器)
+            applyServerData(); 
+            
+            // 本地動畫扣能
             deductEn(p1, p1Act); deductEn(p2, p2Act);
+            
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
-            state = ST.INPUT;
+            // 進入新回合，重置計時器
+            if (state !== ST.INPUT) {
+                state = ST.INPUT;
+                window.turnStartTime = Date.now();
+            }
+
+            // [Fix 11.5] INPUT 狀態下，確保能量同步
             p1.en = data.p1_en; p2.en = data.p2_en;
             
             if(!myAct) {
                  msg = "你的回合：請選擇行動"; 
-                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
             }
             else msg = "已鎖定，等待對手...";
         }
@@ -535,6 +568,7 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
+// [新增] 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -542,9 +576,7 @@ function autoPickMove(p) {
 }
 
 function loop() {
-    ctx.clearRect(0,0,900,600);
-    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,900,600);
-
+    ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -566,22 +598,18 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix] 計時器 (使用 timestamp)
-            // 這裡使用一個簡單的倒數變數，但在真實連線中最好由伺服器時間戳控制
-            if (active && turnTimer > 0) {
-                // 我們使用一個粗略的 fps 近似值，但在 v12.0 中這已足夠
-                // 若要更精準可使用 Date.now()
-                turnTimer -= 1/60; 
-                
-                ctx.fillStyle = turnTimer <= 5 ? "#ff3333" : "#ffe600";
-                ctx.font = "bold 40px Orbitron";
-                ctx.textAlign = "center";
-                ctx.fillText(Math.ceil(turnTimer), 450, 130); 
-                
-                if (turnTimer <= 0) {
-                    let autoAct = autoPickMove(role==='p1'?p1:p2);
-                    if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
-                }
+            // [Fix 12.1] 絕對時間計時器
+            const elapsed = (Date.now() - window.turnStartTime) / 1000;
+            const timeLeft = Math.max(0, 15 - elapsed);
+            
+            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
+            ctx.font = "bold 40px Orbitron";
+            ctx.textAlign = "center";
+            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
+            
+            if (timeLeft <= 0 && active) {
+                let autoAct = autoPickMove(role==='p1'?p1:p2);
+                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
             }
         }
         
@@ -592,7 +620,6 @@ function loop() {
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { 
-        turnTimer = TURN_LIMIT; // 重置
         timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
     }
     else if(state === ST.RESOLVE) {
@@ -609,6 +636,8 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
+                // 重置計時器
+                window.turnStartTime = Date.now(); 
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
@@ -644,7 +673,7 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [Fix] 不再重複扣能，但需取得正確動作進行結算
+    // [Fix 11.5] 不再扣能，因為在 INPUT 階段已扣
     if(["attack","skill1","skill2","skill3"].includes(p1Act)){
         let dmg=DMG[p1Act], blk=false;
         if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
