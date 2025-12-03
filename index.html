@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Energy Fix</title>
+    <title>Cyberpunk Boxing: 15s Blitz</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -14,6 +14,7 @@
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
         }
+        /* CRT 特效 */
         body::after {
             content: ""; position: absolute; top: 0; left: 0; width: 100vw; height: 100vh;
             background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
@@ -49,23 +50,25 @@
         .btn-secondary { border-color: #888; color: #aaa; text-shadow: none; }
         .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
+        /* 頂部列：層級最高確保可點擊 */
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
             display: flex; justify-content: space-between; align-items: center; 
-            z-index: 1000; pointer-events: none;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+            z-index: 10000; pointer-events: none;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
         }
         .top-btn {
-            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #aaa;
+            pointer-events: auto; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #aaa;
             padding: 6px 15px; font-size: 12px; cursor: pointer; margin-left: 8px; border-radius: 4px;
             transition: 0.2s;
         }
         .top-btn:hover { border-color: #fff; color: #fff; }
         .top-btn.active { border-color: #0ff; color: #0ff; box-shadow: 0 0 8px rgba(0,255,255,0.3); }
-        .btn-surrender { border-color: #ff3232; color: #ff3232; pointer-events: all !important; z-index: 99999 !important; position: relative; }
+        
+        .btn-surrender { border-color: #ff3232; color: #ff3232; font-weight: bold; pointer-events: all !important; }
         .btn-surrender:hover { background: #ff3232; color: #fff; box-shadow: 0 0 15px #f00; }
 
-        .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #555; padding: 6px 20px; border-radius: 4px; font-size: 14px; color: #aaa; letter-spacing: 1px; pointer-events: auto; }
+        .status-pill { background: rgba(0,0,0,0.6); border: 1px solid #555; padding: 6px 20px; border-radius: 4px; font-size: 14px; color: #aaa; letter-spacing: 1px; pointer-events: auto; }
         .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
         .input-code { background: rgba(0,0,0,0.5); border: 1px solid #0ff; color: #0ff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; }
@@ -77,7 +80,8 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
-        #player-badge { position: absolute; top: 135px; left: 20px; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 6px 12px; font-size: 14px; display: none; pointer-events: none; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-weight: bold; letter-spacing: 1px; }
+        /* 身分標示下移 */
+        #player-badge { position: absolute; top: 120px; left: 20px; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 6px 12px; font-size: 14px; display: none; pointer-events: none; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-weight: bold; letter-spacing: 1px; }
     </style>
 </head>
 <body>
@@ -105,7 +109,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.1 Energy Fixed</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.2 15s Timer</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -147,7 +151,7 @@
             </div>
             <div class="rule-item">
                 <div style="color:#fff;font-weight:bold;font-size:18px;">⏱️ 限時機制</div>
-                <div style="color:#ddd; margin-top:5px;">多人對戰時，每回合有 <span class="highlight">30秒</span> 思考時間，逾時將自動隨機出招。</div>
+                <div style="color:#ddd; margin-top:5px;">多人對戰每回合 <span class="highlight">15秒</span>，逾時將自動隨機出招。</div>
             </div>
             <div style="text-align:center; margin-top:40px;">
                 <button class="btn-menu" onclick="toggleRules()">我準備好了</button>
@@ -174,7 +178,7 @@
     const MAX_EN = 8;
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
-    const TURN_LIMIT = 30;
+    const TURN_LIMIT = 15; // [修改] 改為 15 秒
 
     function showMenu() { document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden')); document.getElementById('ui-menu').classList.remove('hidden'); }
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
@@ -209,7 +213,7 @@
     window.currentRoomId = null;
     window.myRole = 'p1';
     
-    window.requestRestart = function(){}; 
+    window.requestRestart = function(){ restartGameLocal(); }; 
 </script>
 
 <!-- Firebase 連線 -->
@@ -346,22 +350,43 @@ const ctx = canvas.getContext('2d');
 let actx, musicOn=true, sfxOn=true;
 function initSfx() { if(!actx) actx = new AudioContext(); if(actx.state==='suspended') actx.resume(); }
 const Sound = {
-    play: (f,t,d,v=0.1) => { if(!sfxOn||!actx)return; const o=actx.createOscillator(), g=actx.createGain(); o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+d); },
+    play: (f,t,d,v=0.1) => { 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(), g=actx.createGain(); 
+        o.type=t; o.frequency.setValueAtTime(f, actx.currentTime);
+        g.gain.setValueAtTime(v, actx.currentTime); 
+        g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); 
+        o.connect(g); g.connect(actx.destination); 
+        o.start(); o.stop(actx.currentTime+d); 
+    },
     click: ()=>Sound.play(800,'square',0.05,0.05),
     hit: ()=>{ Sound.play(150,'sawtooth',0.2,0.3); Sound.play(50,'square',0.3,0.3); },
     heavy: ()=>{ Sound.play(80,'square',0.5,0.5); Sound.play(40,'sawtooth',0.6,0.5); },
     block: ()=>Sound.play(2000,'triangle',0.1,0.2),
     sBlock: ()=>Sound.play(300,'sine',0.6,0.3),
-    charge: ()=>{ if(!sfxOn||!actx)return; const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(200,actx.currentTime);o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);g.gain.setValueAtTime(0.1,actx.currentTime);g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); },
+    charge: ()=>{ 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(),g=actx.createGain();
+        o.frequency.setValueAtTime(200,actx.currentTime);
+        o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);
+        g.gain.setValueAtTime(0.1,actx.currentTime);
+        g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);
+        o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); 
+    },
     win: ()=> { if(!sfxOn)return; [523,659,783,1046].forEach((f,i)=>setTimeout(()=>Sound.play(f,'square',0.3,0.2),i*150)); },
     lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
 
+// BGM v4.0 (經典版)
 const BGM = {
     on: false, t: null,
     start: function(){ if(this.on||!musicOn)return; initSfx(); this.on=true; this.loop(); },
     stop: function(){ this.on=false; clearTimeout(this.t); },
-    loop: function(){ if(!this.on)return; if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); this.t=setTimeout(()=>this.loop(), 500); }
+    loop: function(){ 
+        if(!this.on)return; 
+        if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); 
+        this.t=setTimeout(()=>this.loop(), 500); 
+    }
 };
 
 let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
@@ -405,6 +430,7 @@ class Btn {
     check(p,en){return this.hit(p) && en>=this.cost;}
 }
 
+// [修正] 按鈕位置 Y 軸，避免與 HUD 重疊
 const BTNS = [
     new Btn("集氣",40,420,CLR.YEL,"charge"), new Btn("防禦",150,420,CLR.BLUE,"block"), new Btn("超級防守",260,420,CLR.PUR,"s_block"),
     new Btn("機械刺拳",370,420,CLR.RED,"attack"), new Btn("音速衝擊",480,420,CLR.ORANGE,"skill1",1), new Btn("雷霆重擊",590,420,'#FF6400',"skill2",2), new Btn("終極崩壞",700,420,'#FF0000',"skill3",3)
@@ -412,6 +438,7 @@ const BTNS = [
 
 window.gameMode = 'single';
 
+// [修復] 確保所有全域函式都定義
 window.restartGameLocal = () => { startGame('single'); };
 window.confirmSurrender = function() {
     if (!confirm("確定要投降嗎？")) return;
@@ -464,16 +491,19 @@ window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
+    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
+    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -527,6 +557,7 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
+// [新增] 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -534,7 +565,10 @@ function autoPickMove(p) {
 }
 
 function loop() {
-    ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
+    // 清除並繪製半透明遮罩
+    ctx.clearRect(0,0,900,600);
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,900,600);
+    
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -556,10 +590,17 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
+            // [新增] 多人模式倒數計時
             if (active && turnTimer > 0) {
                 turnTimer -= 1/60;
-                ctx.fillStyle = "#ffe600"; ctx.font = "bold 30px Orbitron"; ctx.fillText(Math.ceil(turnTimer), 450, 450);
+                ctx.fillStyle = turnTimer <= 5 ? "#ff3333" : "#ffe600";
+                ctx.font = "bold 40px Orbitron";
+                ctx.textAlign = "center";
+                // [調整] 計時器位置：中央偏上，不擋HUD
+                ctx.fillText(Math.ceil(turnTimer), 450, 130); 
+                
                 if (turnTimer <= 0) {
+                    // 時間到，自動出招
                     let autoAct = autoPickMove(role==='p1'?p1:p2);
                     if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
                 }
@@ -573,7 +614,7 @@ function loop() {
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { 
-        turnTimer = TURN_LIMIT;
+        turnTimer = TURN_LIMIT; // 重置計時
         timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
     }
     else if(state === ST.RESOLVE) {
@@ -596,9 +637,13 @@ function loop() {
         }
     }
 
-    // [Layout Fix] HUD 畫在下面一點 (80)
+    // [Layout Fix] HUD 位置調整至 y=80
     drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); // 訊息放上面
+    
+    // 訊息文字位置
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; 
+    ctx.fillText(msg,450,60); 
+
     requestAnimationFrame(loop);
 }
 
@@ -626,18 +671,20 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [修正] 不再重複扣能
-    if(["attack","skill1","skill2","skill3"].includes(p1Act)){
-        let dmg=DMG[p1Act], blk=false;
-        if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
+    const r1 = checkAndDeduct(p1, p1Act);
+    const r2 = checkAndDeduct(p2, p2Act);
+
+    if(["attack","skill1","skill2","skill3"].includes(r1)){
+        let dmg=DMG[r1], blk=false;
+        if(r1==="skill3"){if(r2==="s_block")blk=true;}else{if(r2==="block")blk=true;}
         if(blk){spawnText("格擋!",p2.x,p2.y-100,CLR.BLUE);Sound.block();}else{p2.hp-=dmg;p2.shake=20;p2.flash=5;spawnText("-"+dmg,p2.x,p2.y-100,CLR.RED);Sound.hit();}
     }
-    if(["attack","skill1","skill2","skill3"].includes(p2Act)){
-        let dmg=DMG[p2Act], blk=false;
-        if(p2Act==="skill3"){if(p1Act==="s_block")blk=true;}else{if(p1Act==="block")blk=true;}
+    if(["attack","skill1","skill2","skill3"].includes(r2)){
+        let dmg=DMG[r2], blk=false;
+        if(r2==="skill3"){if(r1==="s_block")blk=true;}else{if(r1==="block")blk=true;}
         if(blk){spawnText("格擋!",p1.x,p1.y-100,CLR.BLUE);Sound.block();}else{p1.hp-=dmg;p1.shake=20;p1.flash=5;spawnText("-"+dmg,p1.x,p1.y-100,CLR.RED);Sound.hit();}
     }
-    handleCharge(p1,p1Act,p2Act); handleCharge(p2,p2Act,p1Act);
+    handleCharge(p1,r1,r2); handleCharge(p2,r2,r1);
 }
 
 function handleCharge(p,myAct,opAct){
