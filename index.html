@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Replay Fixed</title>
+    <title>Cyberpunk Boxing: Final Sync</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -86,7 +86,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.3 Replay Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.4 Final Sync</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -123,7 +123,7 @@
     <div id="ui-result" class="ui-layer hidden" style="background: rgba(0,0,0,0.85);">
         <h1 id="result-title">YOU WIN</h1>
         <button class="btn-menu" onclick="restartGame()">再來一局</button>
-        <button class="btn-menu btn-secondary" onclick="location.reload()">離開</button>
+        <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">離開</button>
     </div>
 
     <canvas id="gameCanvas" width="900" height="600"></canvas>
@@ -140,6 +140,9 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
+    // 離線模式的離開函式 (預設)
+    window.leaveRoom = function() { location.reload(); };
+
     window.confirmSurrender = function() {
         if (!confirm("確定要投降嗎？")) return;
         if (window.gameMode === 'multi') {
@@ -237,6 +240,16 @@
             function setupListener(code) {
                 onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), myRole); });
             }
+
+            // [新增] 離開房間函式 - 通知對方並重整
+            window.leaveRoom = async () => {
+                if (currentRoomId) {
+                    try {
+                        await updateDoc(getRef(currentRoomId), { status: 'closed' });
+                    } catch(e) { console.error(e); }
+                }
+                location.reload();
+            };
 
             window.sendAction = async (act) => {
                 if(!currentRoomId) return;
@@ -349,11 +362,7 @@ window.startGame = (m) => {
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
     if(m === 'single') { msg = "單人模式：請下指令"; document.getElementById('room-info').style.display = 'none'; }
-    else { 
-        // [Fix] 修改初始文字，避免觸發「等待」關鍵字鎖定
-        msg = "連線成功！請選擇行動"; 
-        const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; 
-    }
+    else { msg = "連線成功！請選擇行動"; const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`; }
 };
 
 window.restartGame = () => {
@@ -363,15 +372,23 @@ window.restartGame = () => {
 };
 
 window.handleSync = (data, role) => {
+    // [Fix] 對方離開偵測
+    if (data.status === 'closed') {
+        alert("對方已離開遊戲");
+        location.reload();
+        return;
+    }
+
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // [Fix] 偵測重置：如果雙方血量回滿，強制重啟遊戲
+    // 偵測重置
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi');
         return;
     }
     
+    // 投降同步
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -432,8 +449,7 @@ function loop() {
         let active = true; let myEn = p1.en;
         if(window.gameMode === 'multi') {
             const r = window.myRole || 'p1'; myEn = (r === 'p1') ? p1.en : p2.en;
-            // [Fix] 更新鎖定關鍵字
-            if(msg.includes("等待對手") || msg.includes("已鎖定")) active = false;
+            if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
         }
         
         let anyHover = false;
