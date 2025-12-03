@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: Web Ultimate</title>
+    <title>Cyberpunk Boxing: Perfect Network</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -68,7 +68,7 @@
 <div id="game-wrapper">
     <div class="top-bar">
         <div style="display:flex; gap:10px;">
-            <div id="connection-status" class="status-pill">離線模式</div>
+            <div id="connection-status" class="status-pill offline">離線模式 (Single Player)</div>
             <div class="status-pill" id="room-info" style="display:none;"></div>
         </div>
         <div style="pointer-events: auto; display: flex; gap: 5px;">
@@ -86,7 +86,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.1 Final Web</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v7.2 Sync Perfected</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -140,20 +140,12 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
-    // [修復] 投降邏輯：設定 state 為 RESOLVE，並把 timer 設為 100 (大於60)，強制下一幀進入 GAMEOVER
     window.confirmSurrender = function() {
         if (!confirm("確定要投降嗎？")) return;
-        
-        // 多人模式通知伺服器
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
-            // 單人模式直接處理
-            p1.hp = 0; 
-            state = ST.RESOLVE; 
-            timer = 100; // 直接跳過等待時間
-            p1Act = 'idle'; p2Act = 'idle'; 
-            msg = "你投降了！";
+            p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
         }
     };
 
@@ -166,16 +158,14 @@
         }, 3000);
     };
     
-    // 座標校正
     function getMousePos(evt) {
         const rect = canvas.getBoundingClientRect();
         return { x: (evt.clientX - rect.left) / (rect.width / canvas.width), y: (evt.clientY - rect.top) / (rect.height / canvas.height) };
     }
 </script>
 
-<!-- Firebase 連線 (含錯誤處理與設定) -->
+<!-- Firebase 連線 -->
 <script type="module">
-    // 您的 Firebase 設定
     const myFirebaseConfig = {
       apiKey: "AIzaSyDxEuqX6VZC9eqmEk5Sp6jgynMxDm2U8Cg",
       authDomain: "boxing-game-1f009.firebaseapp.com",
@@ -255,13 +245,22 @@
 
             window.sendSurrender = async () => {
                 if(!currentRoomId) return;
-                // [投降] 設定自己的血量為 0，並更新時間戳記觸發同步
-                const up = {}; up[myRole+'_hp'] = 0; up.ts = Date.now(); await updateDoc(getRef(currentRoomId), up);
+                // 發送特殊動作 'surrender' 以及血量歸零，確保對方收到
+                const up = {}; 
+                up[myRole+'_hp'] = 0; 
+                up[myRole+'_act'] = 'surrender';
+                up.ts = Date.now(); 
+                await updateDoc(getRef(currentRoomId), up);
             };
 
             window.syncState = async (s) => {
                 if(myRole !== 'p1') return;
-                await updateDoc(getRef(currentRoomId), { p1_act: null, p2_act: null, p1_hp: s.p1_hp, p1_en: s.p1_en, p2_hp: s.p2_hp, p2_en: s.p2_en, ts: Date.now() });
+                await updateDoc(getRef(currentRoomId), { 
+                    p1_act: null, p2_act: null, 
+                    p1_hp: s.p1_hp, p1_en: s.p1_en, 
+                    p2_hp: s.p2_hp, p2_en: s.p2_en, 
+                    ts: Date.now() 
+                });
             };
 
             window.resetRoom = async () => {
@@ -305,7 +304,6 @@ let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
 let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
-let pendingServerData = null;
 
 class Btn {
     constructor(t,x,y,c,a,cost=0){this.t=t;this.r={x,y,w:100,h:50};this.c=c;this.a=a;this.cost=cost;}
@@ -314,7 +312,6 @@ class Btn {
         const col = dis ? CLR.GRY : this.c;
         const hov = !dis && this.hit(mouse);
         if(hov) canvas.style.cursor = 'pointer';
-        
         ctx.fillStyle = hov ? CLR.WHT : col;
         if(hov) ctx.fillRect(this.r.x-2, this.r.y-2, this.r.w+4, this.r.h+4);
         ctx.fillStyle = col; ctx.fillRect(this.r.x, this.r.y, this.r.w, this.r.h);
@@ -357,53 +354,53 @@ window.restartGame = () => {
     else { startGame('single'); }
 };
 
-// [關鍵] 完美同步邏輯
+// [關鍵] 完美同步邏輯 v7.2
 window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
     
-    // [修復] 投降判斷：若任意方血量 <= 0，且目前不是 OVER 狀態，強制跳轉到 RESOLVE 並設定 timer=100
-    if(state !== ST.OVER && (data.p1_hp <= 0 || data.p2_hp <= 0)) {
+    // 1. 優先檢查投降/結束條件 (HP歸零 或 動作為投降)
+    const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
+    
+    if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
         state = ST.RESOLVE; 
-        timer = 100; // 強制過期，下一幀 loop 會判斷 hp <= 0 進而觸發 GAMEOVER
+        timer = 100; // 強制跳轉結算
         p1Act = 'idle'; p2Act = 'idle'; 
-        msg = "有人投降了！";
+        msg = "戰鬥結束！";
         return;
     }
 
-    pendingServerData = data;
-
-    // 只有在 INPUT 狀態才同步資料，避免動畫中途被覆蓋
-    if (state === ST.INPUT) {
-        applyServerData();
+    // 2. 狀態鎖：如果正在動畫中，拒絕 HP/Energy 的同步，防止舊資料覆蓋本地運算結果
+    if (state !== ST.ANIM && state !== ST.RESOLVE) {
+        p1.hp = data.p1_hp; p1.en = data.p1_en;
+        p2.hp = data.p2_hp; p2.en = data.p2_en;
     }
 
+    // 3. 動作同步與觸發
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
-    if(data.p1_act && data.p2_act) {
-        if(state === ST.INPUT) {
-            p1Act = data.p1_act; p2Act = data.p2_act;
-            deductEn(p1, p1Act); deductEn(p2, p2Act);
-            setState(p1, p1Act); setState(p2, p2Act);
-            state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
-        }
-    } else {
-        if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
+    if(data.p1_act && data.p2_act && state === ST.INPUT) {
+        p1Act = data.p1_act; p2Act = data.p2_act;
+        
+        // 在進入動畫前，先執行本地扣能 (視覺用)
+        deductEn(p1, p1Act); deductEn(p2, p2Act);
+        
+        setState(p1, p1Act); setState(p2, p2Act);
+        state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
+    } 
+    
+    // 4. 回合重置
+    if(!data.p1_act && !data.p2_act) {
+        if(state !== ST.ANIM && state !== ST.RESOLVE && state !== ST.OVER) {
             state = ST.INPUT;
-            // 再次確保同步
-            p1.en = data.p1_en; p2.en = data.p2_en;
+            // 確保回合開始時數值是最新的
+            p1.hp = data.p1_hp; p1.en = data.p1_en;
+            p2.hp = data.p2_hp; p2.en = data.p2_en;
+            
             if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
     }
 };
-
-function applyServerData() {
-    if (!pendingServerData) return;
-    p1.hp = pendingServerData.p1_hp; 
-    p1.en = pendingServerData.p1_en; 
-    p2.hp = pendingServerData.p2_hp; 
-    p2.en = pendingServerData.p2_en;
-}
 
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
@@ -440,7 +437,6 @@ function loop() {
         timer++;
         if(timer > 60) {
             setState(p1,'idle'); setState(p2,'idle');
-            // [投降/結束判定]
             if(p1.hp<=0 || p2.hp<=0) {
                 state = ST.OVER;
                 let t = "DRAW";
@@ -451,11 +447,8 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                // 房主計算並上傳
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
-            // 房客應用最新數據
-            if(window.gameMode === 'multi') applyServerData();
         }
     }
 
