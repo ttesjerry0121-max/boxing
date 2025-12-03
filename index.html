@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v11.4 Timer Fix</title>
+    <title>Cyberpunk Boxing: Sync Perfected</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -32,7 +32,7 @@
         .hidden { opacity: 0; pointer-events: none; z-index: -1; }
         
         h1 { color: #0ff; font-size: 56px; margin: 0 0 10px 0; text-shadow: 0 0 20px #0ff; text-align: center; letter-spacing: 4px; font-style: italic; }
-        h2 { font-size: 20px; color: #aaa; margin-bottom: 40px; text-transform: uppercase; letter-spacing: 5px; }
+        h2 { font-size: 18px; color: #0ff; margin-bottom: 40px; letter-spacing: 8px; }
         
         .btn-menu {
             background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.1), transparent);
@@ -42,18 +42,17 @@
         }
         .btn-menu:hover:not(:disabled) { background: #0ff; color: #000; text-shadow: none; box-shadow: 0 0 30px #0ff; transform: scale(1.02); }
         .btn-menu:disabled { border-color: #444; color: #666; cursor: not-allowed; }
-        
-        .btn-secondary { border-color: #555; color: #aaa; background: transparent; }
+        .btn-secondary { border-color: #888; color: #aaa; text-shadow: none; }
         .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
             display: flex; justify-content: space-between; align-items: center; 
-            z-index: 1000; pointer-events: none;
+            z-index: 10000; pointer-events: none;
             background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
         }
         .top-btn {
-            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #aaa;
+            pointer-events: auto; background: rgba(0,0,0,0.5); border: 1px solid #444; color: #aaa;
             padding: 6px 15px; font-size: 12px; cursor: pointer; margin-left: 8px; border-radius: 4px;
             transition: 0.2s;
         }
@@ -75,7 +74,7 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
-        #player-badge { position: absolute; top: 135px; left: 20px; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 6px 12px; font-size: 14px; display: none; pointer-events: none; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-weight: bold; letter-spacing: 1px; }
+        #player-badge { position: absolute; top: 120px; left: 20px; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 6px 12px; font-size: 14px; display: none; pointer-events: none; border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); font-weight: bold; letter-spacing: 1px; }
     </style>
 </head>
 <body>
@@ -103,7 +102,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.4 Realtime Timer</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v11.5 Sync Perfected</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -172,8 +171,7 @@
     const MAX_EN = 8;
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
-    const TURN_LIMIT = 15; 
-    let turnStartTime = 0; // [新增] 絕對時間戳記
+    const TURN_LIMIT = 15; // [設定] 15秒回合
 
     function showMenu() { document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden')); document.getElementById('ui-menu').classList.remove('hidden'); }
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
@@ -345,26 +343,47 @@ const ctx = canvas.getContext('2d');
 let actx, musicOn=true, sfxOn=true;
 function initSfx() { if(!actx) actx = new AudioContext(); if(actx.state==='suspended') actx.resume(); }
 const Sound = {
-    play: (f,t,d,v=0.1) => { if(!sfxOn||!actx)return; const o=actx.createOscillator(), g=actx.createGain(); o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+d); },
+    play: (f,t,d,v=0.1) => { 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(), g=actx.createGain(); 
+        o.type=t; o.frequency.setValueAtTime(f, actx.currentTime);
+        g.gain.setValueAtTime(v, actx.currentTime); 
+        g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); 
+        o.connect(g); g.connect(actx.destination); 
+        o.start(); o.stop(actx.currentTime+d); 
+    },
     click: ()=>Sound.play(800,'square',0.05,0.05),
     hit: ()=>{ Sound.play(150,'sawtooth',0.2,0.3); Sound.play(50,'square',0.3,0.3); },
     heavy: ()=>{ Sound.play(80,'square',0.5,0.5); Sound.play(40,'sawtooth',0.6,0.5); },
     block: ()=>Sound.play(2000,'triangle',0.1,0.2),
     sBlock: ()=>Sound.play(300,'sine',0.6,0.3),
-    charge: ()=>{ if(!sfxOn||!actx)return; const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(200,actx.currentTime);o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);g.gain.setValueAtTime(0.1,actx.currentTime);g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); },
+    charge: ()=>{ 
+        if(!sfxOn||!actx)return; 
+        const o=actx.createOscillator(),g=actx.createGain();
+        o.frequency.setValueAtTime(200,actx.currentTime);
+        o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);
+        g.gain.setValueAtTime(0.1,actx.currentTime);
+        g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);
+        o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); 
+    },
     win: ()=> { if(!sfxOn)return; [523,659,783,1046].forEach((f,i)=>setTimeout(()=>Sound.play(f,'square',0.3,0.2),i*150)); },
     lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
 
-// BGM v4.0
+// BGM v4.0 (經典版)
 const BGM = {
     on: false, t: null,
     start: function(){ if(this.on||!musicOn)return; initSfx(); this.on=true; this.loop(); },
     stop: function(){ this.on=false; clearTimeout(this.t); },
-    loop: function(){ if(!this.on)return; if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); this.t=setTimeout(()=>this.loop(), 500); }
+    loop: function(){ 
+        if(!this.on)return; 
+        if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); 
+        this.t=setTimeout(()=>this.loop(), 500); 
+    }
 };
 
 let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
+let turnTimer = TURN_LIMIT;
 const ST = { INPUT:0, ANIM:1, RESOLVE:2, OVER:3 };
 let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
@@ -430,7 +449,7 @@ window.startGame = (m) => {
     particles=[]; floatingTexts=[];
     pendingServerData = null;
     state = ST.INPUT;
-    turnStartTime = Date.now(); // [Fix] 重置計時器
+    turnTimer = TURN_LIMIT;
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
@@ -487,26 +506,34 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
-    // [Fix] 回合重置強制同步
-    if (!data.p1_act && !data.p2_act) applyServerData();
-    if (state === ST.INPUT) applyServerData();
+    
+    // [Fix 11.5] 不論狀態，只要沒有動作，就代表新回合，強制同步
+    if (!data.p1_act && !data.p2_act) {
+        applyServerData();
+    } else if (state === ST.INPUT) {
+        applyServerData();
+    }
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
+            // [Fix 11.5] 本地扣能 (視覺用)
             deductEn(p1, p1Act); deductEn(p2, p2Act);
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
-            if (state !== ST.INPUT) {
-                state = ST.INPUT;
-                turnStartTime = Date.now(); // [Fix] 重置計時器
-            }
+            state = ST.INPUT;
+            // [Fix 11.5] INPUT 狀態下，確保能量同步
             p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
+            
+            if(!myAct) {
+                 msg = "你的回合：請選擇行動"; 
+                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
+            }
+            else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -562,18 +589,22 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix] 絕對時間計時器
-            const elapsed = (Date.now() - turnStartTime) / 1000;
-            const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
-            
-            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
-            ctx.font = "bold 40px Orbitron";
-            ctx.textAlign = "center";
-            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
-            
-            if (timeLeft <= 0 && active) {
-                let autoAct = autoPickMove(role==='p1'?p1:p2);
-                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+            // [新增] 多人模式倒數計時
+            if (active && turnTimer > 0) {
+                // [Fix] 使用 Date.now() 修正倒數過快問題
+                const elapsed = (Date.now() - turnStartTime) / 1000;
+                const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
+                
+                ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
+                ctx.font = "bold 40px Orbitron";
+                ctx.textAlign = "center";
+                // [調整] 計時器位置：中央偏上
+                ctx.fillText(Math.ceil(timeLeft), 450, 130); 
+                
+                if (timeLeft <= 0) {
+                    let autoAct = autoPickMove(role==='p1'?p1:p2);
+                    if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+                }
             }
         }
         
@@ -584,7 +615,7 @@ function loop() {
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { 
-        turnStartTime = Date.now();
+        turnStartTime = Date.now(); // 重置時間戳
         timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
     }
     else if(state === ST.RESOLVE) {
@@ -601,15 +632,17 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                turnStartTime = Date.now(); // [Fix]
+                turnStartTime = Date.now(); // 重置下一回合時間戳
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
+            // [Fix 11.5] 結算後再次應用伺服器確認的數值
             if(window.gameMode === 'multi') applyServerData();
         }
     }
 
+    // [Layout Fix] HUD 畫在下面一點 (80)
     drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40);
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); // 訊息放上面
     requestAnimationFrame(loop);
 }
 
@@ -637,20 +670,19 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    const r1 = checkAndDeduct(p1, p1Act);
-    const r2 = checkAndDeduct(p2, p2Act);
-
-    if(["attack","skill1","skill2","skill3"].includes(r1)){
-        let dmg=DMG[r1], blk=false;
-        if(r1==="skill3"){if(r2==="s_block")blk=true;}else{if(r2==="block")blk=true;}
+    // [Fix 11.5] 這裡不再扣能，因為已經在 INPUT 階段扣過了
+    
+    if(["attack","skill1","skill2","skill3"].includes(p1Act)){
+        let dmg=DMG[p1Act], blk=false;
+        if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
         if(blk){spawnText("格擋!",p2.x,p2.y-100,CLR.BLUE);Sound.block();}else{p2.hp-=dmg;p2.shake=20;p2.flash=5;spawnText("-"+dmg,p2.x,p2.y-100,CLR.RED);Sound.hit();}
     }
-    if(["attack","skill1","skill2","skill3"].includes(r2)){
-        let dmg=DMG[r2], blk=false;
-        if(r2==="skill3"){if(r1==="s_block")blk=true;}else{if(r1==="block")blk=true;}
+    if(["attack","skill1","skill2","skill3"].includes(p2Act)){
+        let dmg=DMG[p2Act], blk=false;
+        if(p2Act==="skill3"){if(p1Act==="s_block")blk=true;}else{if(p1Act==="block")blk=true;}
         if(blk){spawnText("格擋!",p1.x,p1.y-100,CLR.BLUE);Sound.block();}else{p1.hp-=dmg;p1.shake=20;p1.flash=5;spawnText("-"+dmg,p1.x,p1.y-100,CLR.RED);Sound.hit();}
     }
-    handleCharge(p1,r1,r2); handleCharge(p2,r2,r1);
+    handleCharge(p1,p1Act,p2Act); handleCharge(p2,p2Act,p1Act);
 }
 
 function handleCharge(p,myAct,opAct){
@@ -684,7 +716,9 @@ canvas.addEventListener('mousedown',e=>{
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
                 p2Act=opts[Math.floor(Math.random()*opts.length)];
                 
-                checkAndDeduct(p1, p1Act); checkAndDeduct(p2, p2Act);
+                // 單人模式：這裡扣一次 (因為沒有 handleSync)
+                deductEn(p1, p1Act); deductEn(p2, p2Act);
+                
                 setState(p1,p1Act); setState(p2,p2Act);
                 state=ST.ANIM; timer=0;
             }else{
