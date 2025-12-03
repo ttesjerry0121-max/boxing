@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v13.2 Ultimate</title>
+    <title>Cyberpunk Boxing: v14.3 Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -15,7 +15,6 @@
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
         }
-        
         #game-wrapper {
             position: relative; width: 900px; height: 600px;
             box-shadow: 0 0 60px rgba(0,255,255,0.2), 0 0 20px #000; 
@@ -27,7 +26,7 @@
         }
         canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         
-        /* 全螢幕 UI 層 (主選單、大廳) - 層級最高 2000 */
+        /* UI 層 */
         .ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(5,5,12,0.95); display: flex; flex-direction: column;
@@ -52,11 +51,20 @@
         .btn-secondary { border-color: #666; color: #aaa; text-shadow: none; background: transparent; }
         .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
-        /* 頂部功能列 - 層級 100 (低於 UI 層，但高於 Canvas) */
+        /* [新增] 紅色退出按鈕樣式 */
+        .btn-exit { 
+            border-color: #ff3333; color: #ff3333; text-shadow: none; background: rgba(50, 0, 0, 0.3); 
+        }
+        .btn-exit:hover { 
+            border-color: #ff6666; color: #fff; background: #ff3333; box-shadow: 0 0 20px #f00; 
+        }
+
+        /* 頂部功能列 */
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
             display: flex; justify-content: space-between; align-items: center; 
-            z-index: 100; pointer-events: none;
+            z-index: 100; 
+            pointer-events: none;
             background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
         }
         .top-btn {
@@ -67,14 +75,18 @@
         .top-btn:hover { border-color: #fff; color: #fff; }
         .top-btn.active { border-color: #0ff; color: #0ff; box-shadow: 0 0 8px rgba(0,255,255,0.3); }
         
-        .btn-surrender { border-color: #ff3232; color: #ff3232; font-weight: bold; }
+        .btn-surrender { border-color: #ff3232; color: #ff3232; font-weight: bold; pointer-events: auto; }
         .btn-surrender:hover { background: #ff3232; color: #fff; box-shadow: 0 0 15px #f00; }
 
         .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #444; padding: 6px 15px; border-radius: 20px; font-size: 12px; color: #888; letter-spacing: 1px; pointer-events: auto; }
         .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
-        .input-code { background: rgba(0,0,0,0.5); border: 1px solid #0ff; color: #0ff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; border-radius: 5px; }
-        .room-code-display { font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; }
+        .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; border-radius: 5px; }
+        .room-code-display { 
+            font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; 
+            cursor: pointer; transition: 0.2s;
+        }
+        .room-code-display:hover { color: #fff; transform: scale(1.05); }
         
         .rules-card { border: 1px solid #0ff; background: rgba(10, 15, 25, 0.98); padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 0 50px rgba(0,255,255,0.15); }
         .rule-item { margin-bottom: 20px; border-left: 4px solid #ffe600; padding-left: 15px; text-align: left; }
@@ -82,9 +94,8 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
-        /* [修正] 身分標示位置 - 位於頂部列下方，不擋 UI 也不擋遊戲 */
         #player-badge { 
-            position: absolute; top: 60px; left: 20px; 
+            position: absolute; top: 85px; left: 20px; 
             background: rgba(0,0,0,0.85); border: 1px solid #fff; color: #fff; 
             padding: 4px 10px; font-size: 12px; display: none; pointer-events: none; 
             border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
@@ -95,14 +106,12 @@
 <body>
 
 <div id="game-wrapper">
-    <!-- 頂部功能列 (遊戲中顯示) -->
     <div class="top-bar">
         <div style="display:flex; gap:10px;">
             <div id="connection-status" class="status-pill offline">系統離線</div>
             <div class="status-pill" id="room-info" style="display:none;"></div>
         </div>
         <div style="pointer-events: auto; display: flex; gap: 5px;">
-            <!-- 投降按鈕 (預設隱藏，遊戲開始才顯示) -->
             <button id="btn-surrender" class="top-btn btn-surrender hidden">🏳️ 投降 (Surrender)</button>
             <button class="top-btn" onclick="toggleRules()">❓ 規則</button>
             <button id="btn-music" class="top-btn active">🎵 BGM</button>
@@ -110,7 +119,6 @@
         </div>
     </div>
     
-    <!-- 身分標示 -->
     <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
@@ -120,7 +128,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v13.1 Layout Perfected</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v14.3 Final Fix</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -137,10 +145,14 @@
         </div>
         <div id="lobby-wait" class="hidden" style="text-align: center;">
             <div style="color:#0ff; letter-spacing:2px; font-size:14px;">WAITING FOR OPPONENT</div>
-            <div id="room-code-display" class="room-code-display">----</div>
-            <p style="color:#aaa; font-size:14px;">請將代碼分享給對手</p>
-            <br>
-            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消連線</button>
+            
+            <!-- 點擊複製功能 -->
+            <div id="room-code-display" class="room-code-display" onclick="copyRoomCode()" title="點擊複製">----</div>
+            
+            <p style="color:#aaa; font-size:14px; margin-bottom: 30px;">請將代碼分享給對手 (點擊號碼複製)</p>
+            
+            <!-- [修復] 紅色退出按鈕 -->
+            <button class="btn-menu btn-exit" onclick="window.leaveRoom()">❌ 退出房間 (Exit)</button>
         </div>
     </div>
 
@@ -195,15 +207,25 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
+    // [修復] 退出功能直接使用 window.location.reload
     window.leaveRoom = function() { location.reload(); };
-    
-    // 投降功能
+    window.requestRestart = function() { restartGameLocal(); };
+
     window.confirmSurrender = function() {
         if (!confirm("確定要投降嗎？ (Surrender?)")) return;
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
             p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
+        }
+    };
+    
+    // 複製代碼功能
+    window.copyRoomCode = function() {
+        const code = document.getElementById('room-code-display').innerText;
+        if(code !== '----') {
+            navigator.clipboard.writeText(code);
+            alert("房間代碼已複製: " + code);
         }
     };
 
@@ -243,6 +265,8 @@
     window.createRoom = () => alert("系統初始化中...");
     window.joinRoom = () => alert("系統初始化中...");
     window.sendSurrender = () => {};
+    
+    let unsubscribeRoom = null;
 
     (async () => {
         try {
@@ -302,11 +326,17 @@
             };
 
             function setupListener(code) {
-                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
+                if (unsubscribeRoom) unsubscribeRoom();
+                unsubscribeRoom = onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
             }
 
+            // [修復] 離開房間函式：通知資料庫後再重整
             window.leaveRoom = async () => {
-                if (window.currentRoomId) { try { await updateDoc(getRef(window.currentRoomId), { status: 'closed' }); } catch(e) {} }
+                if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
+                // 如果是房主，將房間標記為關閉
+                if (window.currentRoomId && window.myRole === 'p1') {
+                    try { await updateDoc(getRef(window.currentRoomId), { status: 'closed' }); } catch(e) {}
+                }
                 location.reload();
             };
 
@@ -362,29 +392,13 @@ const ctx = canvas.getContext('2d');
 let actx, musicOn=true, sfxOn=true;
 function initSfx() { if(!actx) actx = new AudioContext(); if(actx.state==='suspended') actx.resume(); }
 const Sound = {
-    play: (f,t,d,v=0.1) => { 
-        if(!sfxOn||!actx)return; 
-        const o=actx.createOscillator(), g=actx.createGain(); 
-        o.type=t; o.frequency.setValueAtTime(f, actx.currentTime);
-        g.gain.setValueAtTime(v, actx.currentTime); 
-        g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); 
-        o.connect(g); g.connect(actx.destination); 
-        o.start(); o.stop(actx.currentTime+d); 
-    },
+    play: (f,t,d,v=0.1) => { if(!sfxOn||!actx)return; const o=actx.createOscillator(), g=actx.createGain(); o.type=t; o.frequency.value=f; g.gain.value=v; g.gain.exponentialRampToValueAtTime(0.01, actx.currentTime+d); o.connect(g); g.connect(actx.destination); o.start(); o.stop(actx.currentTime+d); },
     click: ()=>Sound.play(800,'square',0.05,0.05),
     hit: ()=>{ Sound.play(150,'sawtooth',0.2,0.3); Sound.play(50,'square',0.3,0.3); },
     heavy: ()=>{ Sound.play(80,'square',0.5,0.5); Sound.play(40,'sawtooth',0.6,0.5); },
     block: ()=>Sound.play(2000,'triangle',0.1,0.2),
     sBlock: ()=>Sound.play(300,'sine',0.6,0.3),
-    charge: ()=>{ 
-        if(!sfxOn||!actx)return; 
-        const o=actx.createOscillator(),g=actx.createGain();
-        o.frequency.setValueAtTime(200,actx.currentTime);
-        o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);
-        g.gain.setValueAtTime(0.1,actx.currentTime);
-        g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);
-        o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); 
-    },
+    charge: ()=>{ if(!sfxOn||!actx)return; const o=actx.createOscillator(),g=actx.createGain();o.frequency.setValueAtTime(200,actx.currentTime);o.frequency.linearRampToValueAtTime(800,actx.currentTime+0.4);g.gain.setValueAtTime(0.1,actx.currentTime);g.gain.linearRampToValueAtTime(0,actx.currentTime+0.4);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+0.4); },
     win: ()=> { if(!sfxOn)return; [523,659,783,1046].forEach((f,i)=>setTimeout(()=>Sound.play(f,'square',0.3,0.2),i*150)); },
     lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
@@ -408,7 +422,6 @@ let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
 let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
 let pendingServerData = null;
-// [Fix v11.4] 全域時間戳
 let turnStartTime = 0;
 
 class Btn {
@@ -470,11 +483,9 @@ window.startGame = (m) => {
     pendingServerData = null;
     state = ST.INPUT;
     turnTimer = TURN_LIMIT;
-    window.turnStartTime = Date.now(); // [Fix] 重置時間
+    turnStartTime = Date.now();
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
-    
-    // [修復] 只有遊戲開始後才顯示投降按鈕
     document.getElementById('btn-surrender').classList.remove('hidden');
     
     const btnRestart = document.getElementById('btn-restart');
@@ -533,7 +544,6 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
-    // [Fix] 確保同步
     if (!data.p1_act && !data.p2_act) applyServerData();
     if (state === ST.INPUT) applyServerData();
 
@@ -549,11 +559,12 @@ window.handleSync = (data, role) => {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
             if (state !== ST.INPUT) {
                 state = ST.INPUT;
-                window.turnStartTime = Date.now(); // [Fix]
+                turnStartTime = Date.now();
             }
             p1.en = data.p1_en; p2.en = data.p2_en;
             if(!myAct) {
                  msg = "你的回合：請選擇行動"; 
+                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
             }
             else msg = "已鎖定，等待對手...";
         }
@@ -589,10 +600,7 @@ function autoPickMove(p) {
 }
 
 function loop() {
-    ctx.clearRect(0,0,900,600);
-    // [Fix] 半透明背景，確保背景圖可見
-    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,900,600);
-
+    ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -614,14 +622,13 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix 12.1] 絕對時間計時器
-            const elapsed = (Date.now() - window.turnStartTime) / 1000;
+            // [Fix] 絕對時間計時器
+            const elapsed = (Date.now() - turnStartTime) / 1000;
             const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
             
             ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
             ctx.font = "bold 40px Orbitron";
             ctx.textAlign = "center";
-            // [Fix] 計時器位置調整，不與 HUD 重疊
             ctx.fillText(Math.ceil(timeLeft), 450, 130); 
             
             if (timeLeft <= 0 && active) {
@@ -637,7 +644,7 @@ function loop() {
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { 
-        window.turnStartTime = Date.now(); // 重置
+        turnStartTime = Date.now(); // 重置
         timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
     }
     else if(state === ST.RESOLVE) {
@@ -654,18 +661,15 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                window.turnStartTime = Date.now(); // [Fix]
+                turnStartTime = Date.now(); // 重置
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
         }
     }
 
-    // [Fix] HUD 位置調整至 y=50，讓出上方計時器空間
-    drawHUD(20,50,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,50,p2,CLR.RED,"PLAYER 2");
-    
-    // 訊息位置
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); 
+    drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40);
     requestAnimationFrame(loop);
 }
 
@@ -693,18 +697,20 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [Fix 11.5] 不再扣能，因為在 INPUT 階段已扣
-    if(["attack","skill1","skill2","skill3"].includes(p1Act)){
-        let dmg=DMG[p1Act], blk=false;
-        if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
+    const r1 = checkAndDeduct(p1, p1Act);
+    const r2 = checkAndDeduct(p2, p2Act);
+
+    if(["attack","skill1","skill2","skill3"].includes(r1)){
+        let dmg=DMG[r1], blk=false;
+        if(r1==="skill3"){if(r2==="s_block")blk=true;}else{if(r2==="block")blk=true;}
         if(blk){spawnText("格擋!",p2.x,p2.y-100,CLR.BLUE);Sound.block();}else{p2.hp-=dmg;p2.shake=20;p2.flash=5;spawnText("-"+dmg,p2.x,p2.y-100,CLR.RED);Sound.hit();}
     }
-    if(["attack","skill1","skill2","skill3"].includes(p2Act)){
-        let dmg=DMG[p2Act], blk=false;
-        if(p2Act==="skill3"){if(p1Act==="s_block")blk=true;}else{if(p1Act==="block")blk=true;}
+    if(["attack","skill1","skill2","skill3"].includes(r2)){
+        let dmg=DMG[r2], blk=false;
+        if(r2==="skill3"){if(r1==="s_block")blk=true;}else{if(r1==="block")blk=true;}
         if(blk){spawnText("格擋!",p1.x,p1.y-100,CLR.BLUE);Sound.block();}else{p1.hp-=dmg;p1.shake=20;p1.flash=5;spawnText("-"+dmg,p1.x,p1.y-100,CLR.RED);Sound.hit();}
     }
-    handleCharge(p1,p1Act,p2Act); handleCharge(p2,p2Act,p1Act);
+    handleCharge(p1,r1,r2); handleCharge(p2,r2,r1);
 }
 
 function handleCharge(p,myAct,opAct){
@@ -721,6 +727,11 @@ canvas.addEventListener('mousemove',e=>{ mouse = getMousePos(e); });
 document.getElementById('btn-surrender').addEventListener('click', (e) => {
     e.stopPropagation(); 
     window.confirmSurrender();
+});
+// 為 "取消連線" 按鈕綁定事件 (避免點不到)
+document.getElementById('btn-cancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.leaveRoom();
 });
 
 canvas.addEventListener('mousedown',e=>{
@@ -756,4 +767,3 @@ loop();
 </script>
 </body>
 </html>
-
