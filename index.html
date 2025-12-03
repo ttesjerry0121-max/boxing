@@ -3,19 +3,28 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v9.2 Final</title>
+    <title>Cyberpunk Boxing: Final v9.3</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
         body {
             margin: 0; padding: 0; background-color: #050510;
-            background-image: linear-gradient(rgba(0,20,30,0.9), rgba(0,10,20,0.95)), url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0MCIgaGVpZ2h0PSI0MCIgdmlld0JveD0iMCAwIDQwIDQwIj48ZyBmaWxsLXJ1bGU9ImV2ZW5vZGQiPjxwYXRoIGQ9Ik0wIDQwTDQwIDBIMHoiIGZpbGw9IiMwZmYiIGZpbGwtb3BhY2l0eT0iMC4wNSIvPjwvZz48L3N2Zz4=');
+            /* [新增] 賽博龐克背景 */
+            background: 
+                linear-gradient(rgba(0, 10, 20, 0.8), rgba(0, 5, 10, 0.9)),
+                url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2062&auto=format&fit=crop');
+            background-size: cover;
+            background-position: center;
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
         }
         #game-wrapper {
             position: relative; width: 900px; height: 600px;
-            box-shadow: 0 0 50px rgba(0,255,255,0.15); border: 1px solid #333; background: #000;
+            /* [新增] 容器半透明與光暈 */
+            box-shadow: 0 0 60px rgba(0,255,255,0.2), 0 0 20px #000; 
+            border: 2px solid #333; 
+            background: rgba(0, 0, 0, 0.7); 
+            backdrop-filter: blur(3px);
         }
         canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         
@@ -63,7 +72,15 @@
         .highlight { color: #fff; font-weight: bold; }
         
         #restart-status { color: #ffe600; font-size: 14px; margin-top: 10px; height: 20px; }
-        #player-badge { position: absolute; top: 55px; left: 15px; background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; padding: 5px 10px; font-size: 12px; display: none; pointer-events: none; }
+        
+        /* [修正] 身分標示下移，避開集氣燈號 */
+        #player-badge { 
+            position: absolute; top: 85px; left: 20px; 
+            background: rgba(0,0,0,0.8); border: 1px solid #fff; color: #fff; 
+            padding: 5px 10px; font-size: 12px; display: none; pointer-events: none; 
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.5);
+        }
     </style>
 </head>
 <body>
@@ -82,6 +99,7 @@
         </div>
     </div>
     
+    <!-- 身分標示 -->
     <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
@@ -91,7 +109,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v9.2 Final</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v9.3 Final Visuals</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -146,6 +164,7 @@
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
+    // 離線模式預設函式
     window.leaveRoom = function() { location.reload(); };
     window.requestRestart = function() { restartGameLocal(); };
 
@@ -154,7 +173,7 @@
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
-            p1.hp = 0; state = ST.ANIM; timer = 100; p1Action = 'idle'; p2Action = 'idle'; msg = "你投降了！";
+            p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
         }
     };
 
@@ -332,7 +351,7 @@ let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
 const ST = { INPUT:0, ANIM:1, RESOLVE:2, OVER:3 };
 let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
-let p1Action = null, p2Action = null, msg = "";
+let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
 let pendingServerData = null;
 
@@ -402,41 +421,39 @@ window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // 重置
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
-    // 重賽意願
+    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
-    // 投降
+    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.RESOLVE; timer = 100; p1Action = 'idle'; p2Action = 'idle'; msg = "戰鬥結束！";
+        state = ST.RESOLVE; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "戰鬥結束！";
         return;
     }
 
     pendingServerData = data;
-    // 強制同步，防止集氣 Bug
+    // [Fix] 當伺服器資料顯示還未行動時，應用同步數據
     if (!data.p1_act && !data.p2_act) applyServerData();
     if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
-        // 強制進入動畫，無視目前狀態
-        p1Action = data.p1_act; p2Action = data.p2_act;
-        
-        // 視覺扣能
-        checkAndDeduct(p1, p1Action); checkAndDeduct(p2, p2Action);
-        
-        setState(p1, p1Action); setState(p2, p2Action);
-        state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
+        if(state === ST.INPUT) {
+            p1Act = data.p1_act; p2Act = data.p2_act;
+            deductEn(p1, p1Act); deductEn(p2, p2Act);
+            setState(p1, p1Act); setState(p2, p2Act);
+            state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
+        }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
             state = ST.INPUT;
@@ -448,8 +465,10 @@ window.handleSync = (data, role) => {
 
 function applyServerData() {
     if (!pendingServerData) return;
-    p1.hp = pendingServerData.p1_hp; p1.en = pendingServerData.p1_en; 
-    p2.hp = pendingServerData.p2_hp; p2.en = pendingServerData.p2_en;
+    p1.hp = pendingServerData.p1_hp; 
+    p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; 
+    p2.en = pendingServerData.p2_en;
 }
 
 function checkAndDeduct(p, act) {
@@ -459,8 +478,11 @@ function checkAndDeduct(p, act) {
     return act;
 }
 
+function deductEn(p,act){if(act==='skill1')p.en-=1;if(act==='skill2')p.en-=2;if(act==='skill3')p.en-=3;if(p.en<0)p.en=0;}
+
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
+    
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -544,8 +566,8 @@ function setState(p,act){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    const r1 = checkAndDeduct(p1, p1Action);
-    const r2 = checkAndDeduct(p2, p2Action);
+    const r1 = checkAndDeduct(p1, p1Act);
+    const r2 = checkAndDeduct(p2, p2Act);
 
     if(["attack","skill1","skill2","skill3"].includes(r1)){
         let dmg=DMG[r1], blk=false;
@@ -580,15 +602,13 @@ canvas.addEventListener('mousedown',e=>{
         if(b.check(mouse,myEn)){
             Sound.click();
             if(window.gameMode==='single'){
-                p1Action = b.a; 
+                p1Act = b.a; 
                 let opts=["attack","block"];
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
-                p2Action=opts[Math.floor(Math.random()*opts.length)];
+                p2Act=opts[Math.floor(Math.random()*opts.length)];
                 
-                const act1 = checkAndDeduct(p1, p1Action); 
-                const act2 = checkAndDeduct(p2, p2Action);
-                setState(p1,act1); setState(p2,act2);
-                
+                checkAndDeduct(p1, p1Act); checkAndDeduct(p2, p2Act);
+                setState(p1,p1Act); setState(p2,p2Act);
                 state=ST.ANIM; timer=0;
             }else{
                 if(window.sendAction){window.sendAction(b.a);msg="已鎖定，等待對手...";}
