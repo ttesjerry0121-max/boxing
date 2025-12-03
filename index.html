@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v9.0 Final</title>
+    <title>Cyberpunk Boxing: v9.1 Logic Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -91,7 +91,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">連線功能檢查中...</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">遊戲說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v9.0 Final Stable</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v9.1 Force Sync</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -154,7 +154,7 @@
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
-            p1.hp = 0; state = ST.RESOLVE; timer = 100; p1Action = 'idle'; p2Action = 'idle'; msg = "你投降了！";
+            p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
         }
     };
 
@@ -247,7 +247,7 @@
             };
 
             function setupListener(code) {
-                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
+                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data()); });
             }
 
             window.leaveRoom = async () => {
@@ -279,7 +279,10 @@
 
             window.sendSurrender = async () => {
                 if(!window.currentRoomId) return;
-                const up = {}; up[window.myRole+'_hp'] = 0; up[window.myRole+'_act'] = 'surrender'; up.ts = Date.now(); 
+                const up = {}; 
+                up[window.myRole+'_hp'] = 0; 
+                up[window.myRole+'_act'] = 'surrender'; // 發送投降動作
+                up.ts = Date.now(); 
                 await updateDoc(getRef(window.currentRoomId), up);
             };
 
@@ -373,7 +376,8 @@ window.startGame = (m) => {
     document.getElementById('btn-surrender').classList.remove('hidden');
     
     const btnRestart = document.getElementById('btn-restart');
-    btnRestart.disabled = false; btnRestart.innerText = "再來一局";
+    btnRestart.disabled = false;
+    btnRestart.innerText = "再來一局";
     document.getElementById('restart-status').innerText = "";
 
     if(m === 'single') { 
@@ -391,54 +395,73 @@ window.startGame = (m) => {
 
 window.restartGameLocal = () => { startGame('single'); };
 
-window.handleSync = (data, role) => {
+// [v9.0 核心邏輯修正]
+window.handleSync = (data) => {
     if (data.status === 'closed') { alert("對方已離開遊戲"); location.reload(); return; }
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
+    // 重賽偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
+    // 重賽意願顯示
     if (state === ST.OVER) {
-        const opRole = role === 'p1' ? 'p2' : 'p1';
+        const opRole = window.myRole === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
-        if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
+        if (window.myRole === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
+    // 1. 投降/結束偵測 (最優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
-    if(state !== ST.OVER && isSurrender) {
+    if (state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
-        state = ST.RESOLVE; timer = 100; p1Action = 'idle'; p2Action = 'idle'; msg = "戰鬥結束！";
+        // 強制跳過動畫，直接進入結算流程
+        state = ST.RESOLVE; 
+        timer = 100; 
+        p1Action = 'idle'; p2Action = 'idle'; 
+        msg = "戰鬥結束！";
         return;
     }
 
     pendingServerData = data;
     if (state === ST.INPUT) applyServerData();
 
-    const myAct = role==='p1' ? data.p1_act : data.p2_act;
+    // 2. 雙方已行動 -> 強制進動畫
     if(data.p1_act && data.p2_act) {
-        // [關鍵修正] 不論當前狀態，只要伺服器確認雙方都動了，強制進動畫
-        p1Action = data.p1_act; 
-        p2Action = data.p2_act;
-        
-        checkAndDeduct(p1, p1Action); checkAndDeduct(p2, p2Action);
-        setState(p1, p1Action); setState(p2, p2Action);
-        
-        state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
+        // 只有當目前是 INPUT 時才切換狀態，避免動畫重複觸發
+        if (state === ST.INPUT) {
+            p1Action = data.p1_act; 
+            p2Action = data.p2_act;
+            
+            checkAndDeduct(p1, p1Action); checkAndDeduct(p2, p2Action);
+            setState(p1, p1Action); setState(p2, p2Action);
+            
+            // 強制進入動畫
+            state = ST.ANIM; 
+            timer = 0; 
+            msg = "交鋒時刻！";
+        }
     } else {
-        if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
+        // 3. 回合重置 (雙方都沒動作)
+        if(state !== ST.ANIM && state !== ST.RESOLVE && state !== ST.OVER) {
             state = ST.INPUT;
             p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
+            
+            const myAct = window.myRole === 'p1' ? data.p1_act : data.p2_act;
+            if (!myAct) msg = "你的回合：請選擇行動"; 
+            else msg = "已鎖定，等待對手...";
         }
     }
 };
 
 function applyServerData() {
     if (!pendingServerData) return;
-    p1.hp = pendingServerData.p1_hp; p1.en = pendingServerData.p1_en; 
-    p2.hp = pendingServerData.p2_hp; p2.en = pendingServerData.p2_en;
+    p1.hp = pendingServerData.p1_hp; 
+    p1.en = pendingServerData.p1_en; 
+    p2.hp = pendingServerData.p2_hp; 
+    p2.en = pendingServerData.p2_en;
 }
 
 function checkAndDeduct(p, act) {
@@ -450,11 +473,13 @@ function checkAndDeduct(p, act) {
 
 function loop() {
     ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
+    
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
     let s = Math.max(p1.shake, p2.shake);
     if(s>0) { ox=(Math.random()-0.5)*s; oy=(Math.random()-0.5)*s; }
+    
     ctx.strokeStyle='#28003C';ctx.lineWidth=1;for(let i=-200;i<1100;i+=50){ctx.beginPath();ctx.moveTo(i+ox*0.5,400+oy);ctx.lineTo(i-300+(i/900)*600+ox,600+oy);ctx.stroke();}
     ctx.strokeStyle='#C0C';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,400+oy);ctx.lineTo(900,400+oy);ctx.stroke();
 
@@ -473,7 +498,9 @@ function loop() {
         }
         
         let anyHover = false;
-        BTNS.forEach(b => { if(b.draw(myEn, active)) anyHover = true; });
+        BTNS.forEach(b => {
+            if(b.draw(myEn, active)) anyHover = true;
+        });
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
     else if(state === ST.ANIM) { timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } }
@@ -523,6 +550,10 @@ function drawHUD(x,y,p,c,n){
     for(let i=0;i<MAX_EN;i++){ctx.fillStyle=i<p.en?CLR.YEL:"#333";ctx.beginPath();ctx.arc(x+15+i*25,y+45,8,0,Math.PI*2);ctx.fill();ctx.strokeStyle="#000";ctx.stroke();}
 }
 
+function setState(p,act){
+    if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
+}
+
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
@@ -562,13 +593,15 @@ canvas.addEventListener('mousedown',e=>{
         if(b.check(mouse,myEn)){
             Sound.click();
             if(window.gameMode==='single'){
-                p1Action = b.a;
+                p1Action = b.a; 
                 let opts=["attack","block"];
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
                 p2Action=opts[Math.floor(Math.random()*opts.length)];
                 
-                checkAndDeduct(p1, p1Action); checkAndDeduct(p2, p2Action);
-                setState(p1,p1Action); setState(p2,p2Action);
+                const act1 = checkAndDeduct(p1, p1Action); 
+                const act2 = checkAndDeduct(p2, p2Action);
+                setState(p1,act1); setState(p2,act2);
+                
                 state=ST.ANIM; timer=0;
             }else{
                 if(window.sendAction){window.sendAction(b.a);msg="已鎖定，等待對手...";}
