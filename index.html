@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v14.3 Fix</title>
+    <title>Cyberpunk Boxing: v13.2 Final</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -15,6 +15,7 @@
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
         }
+        
         #game-wrapper {
             position: relative; width: 900px; height: 600px;
             box-shadow: 0 0 60px rgba(0,255,255,0.2), 0 0 20px #000; 
@@ -26,7 +27,7 @@
         }
         canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         
-        /* UI 層 */
+        /* 全螢幕 UI 層 */
         .ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(5,5,12,0.95); display: flex; flex-direction: column;
@@ -51,42 +52,29 @@
         .btn-secondary { border-color: #666; color: #aaa; text-shadow: none; background: transparent; }
         .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
-        /* [新增] 紅色退出按鈕樣式 */
-        .btn-exit { 
-            border-color: #ff3333; color: #ff3333; text-shadow: none; background: rgba(50, 0, 0, 0.3); 
-        }
-        .btn-exit:hover { 
-            border-color: #ff6666; color: #fff; background: #ff3333; box-shadow: 0 0 20px #f00; 
-        }
-
         /* 頂部功能列 */
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
             display: flex; justify-content: space-between; align-items: center; 
-            z-index: 100; 
-            pointer-events: none;
+            z-index: 100; pointer-events: none;
             background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
         }
         .top-btn {
-            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #aaa;
-            padding: 6px 15px; font-size: 12px; cursor: pointer; margin-left: 8px; border-radius: 4px;
+            pointer-events: auto; background: rgba(0,0,0,0.6); border: 1px solid #444; color: #888;
+            padding: 5px 12px; font-size: 12px; cursor: pointer; margin-left: 8px; border-radius: 4px;
             transition: 0.2s;
         }
         .top-btn:hover { border-color: #fff; color: #fff; }
         .top-btn.active { border-color: #0ff; color: #0ff; box-shadow: 0 0 8px rgba(0,255,255,0.3); }
         
-        .btn-surrender { border-color: #ff3232; color: #ff3232; font-weight: bold; pointer-events: auto; }
+        .btn-surrender { border-color: #ff3232; color: #ff3232; font-weight: bold; }
         .btn-surrender:hover { background: #ff3232; color: #fff; box-shadow: 0 0 15px #f00; }
 
         .status-pill { background: rgba(0,0,0,0.7); border: 1px solid #444; padding: 6px 15px; border-radius: 20px; font-size: 12px; color: #888; letter-spacing: 1px; pointer-events: auto; }
         .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
         .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; border-radius: 5px; }
-        .room-code-display { 
-            font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; 
-            cursor: pointer; transition: 0.2s;
-        }
-        .room-code-display:hover { color: #fff; transform: scale(1.05); }
+        .room-code-display { font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; }
         
         .rules-card { border: 1px solid #0ff; background: rgba(10, 15, 25, 0.98); padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 0 50px rgba(0,255,255,0.15); }
         .rule-item { margin-bottom: 20px; border-left: 4px solid #ffe600; padding-left: 15px; text-align: left; }
@@ -119,6 +107,7 @@
         </div>
     </div>
     
+    <!-- 身分標示 -->
     <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
@@ -128,7 +117,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v14.3 Final Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v13.2 Cancel Fix</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -145,14 +134,11 @@
         </div>
         <div id="lobby-wait" class="hidden" style="text-align: center;">
             <div style="color:#0ff; letter-spacing:2px; font-size:14px;">WAITING FOR OPPONENT</div>
-            
-            <!-- 點擊複製功能 -->
-            <div id="room-code-display" class="room-code-display" onclick="copyRoomCode()" title="點擊複製">----</div>
-            
-            <p style="color:#aaa; font-size:14px; margin-bottom: 30px;">請將代碼分享給對手 (點擊號碼複製)</p>
-            
-            <!-- [修復] 紅色退出按鈕 -->
-            <button class="btn-menu btn-exit" onclick="window.leaveRoom()">❌ 退出房間 (Exit)</button>
+            <div id="room-code-display" class="room-code-display">----</div>
+            <p style="color:#aaa; font-size:14px;">請將代碼分享給對手</p>
+            <br>
+            <!-- [修復] 加上 ID 以便綁定 -->
+            <button id="btn-cancel" class="btn-menu btn-secondary">取消連線</button>
         </div>
     </div>
 
@@ -172,10 +158,6 @@
                 <div style="color:#ffe600;font-weight:bold;font-size:18px;">⚡ 集氣機制 (Charge)</div>
                 <div style="color:#ddd; margin-top:5px;">能量 +1。若被 <span class="highlight">技能</span> 擊中會中斷。<br>被 <span class="highlight">普攻</span> 擊中則不會中斷 (硬扛)。</div>
             </div>
-            <div class="rule-item">
-                <div style="color:#fff;font-weight:bold;font-size:18px;">⏱️ 限時機制</div>
-                <div style="color:#ddd; margin-top:5px;">多人對戰每回合 <span class="highlight">15秒</span>，逾時將自動隨機出招。</div>
-            </div>
             <div style="text-align:center; margin-top:40px;">
                 <button class="btn-menu" onclick="toggleRules()">我準備好了</button>
             </div>
@@ -187,7 +169,7 @@
         <h1 id="result-title" style="font-size: 80px;">YOU WIN</h1>
         <div id="result-desc" style="color:#aaa; margin-bottom:40px;">BATTLE FINISHED</div>
         
-        <button id="btn-restart" class="btn-menu" onclick="window.requestRestart()">再來一局</button>
+        <button id="btn-restart" class="btn-menu" onclick="requestRestart()">再來一局</button>
         <div id="restart-status"></div>
         <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">離開房間</button>
     </div>
@@ -201,13 +183,12 @@
     const MAX_EN = 8;
     const CLR = { BLUE:'#00FFFF', RED:'#FF3250', YEL:'#FFE600', PUR:'#B400FF', WHT:'#FFFFFF', GRY:'#444', BG:'#0F0F19', ORANGE:'#FFA500' };
     const DMG = { attack:10, skill1:20, skill2:35, skill3:60 };
-    const TURN_LIMIT = 15; 
 
     function showMenu() { document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden')); document.getElementById('ui-menu').classList.remove('hidden'); }
     function showLobby() { document.getElementById('ui-menu').classList.add('hidden'); document.getElementById('ui-lobby').classList.remove('hidden'); }
     function toggleRules() { document.getElementById('ui-rules').classList.toggle('hidden'); }
     
-    // [修復] 退出功能直接使用 window.location.reload
+    // 預設函式
     window.leaveRoom = function() { location.reload(); };
     window.requestRestart = function() { restartGameLocal(); };
 
@@ -217,15 +198,6 @@
             if (window.sendSurrender) window.sendSurrender();
         } else {
             p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
-        }
-    };
-    
-    // 複製代碼功能
-    window.copyRoomCode = function() {
-        const code = document.getElementById('room-code-display').innerText;
-        if(code !== '----') {
-            navigator.clipboard.writeText(code);
-            alert("房間代碼已複製: " + code);
         }
     };
 
@@ -246,8 +218,6 @@
     window.gameMode = 'single';
     window.currentRoomId = null;
     window.myRole = 'p1';
-    
-    window.requestRestart = function(){ restartGameLocal(); }; 
 </script>
 
 <!-- Firebase 連線 -->
@@ -265,8 +235,6 @@
     window.createRoom = () => alert("系統初始化中...");
     window.joinRoom = () => alert("系統初始化中...");
     window.sendSurrender = () => {};
-    
-    let unsubscribeRoom = null;
 
     (async () => {
         try {
@@ -326,16 +294,16 @@
             };
 
             function setupListener(code) {
-                if (unsubscribeRoom) unsubscribeRoom();
-                unsubscribeRoom = onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
+                onSnapshot(getRef(code), (snap) => { if(snap.exists()) window.handleSync(snap.data(), window.myRole); });
             }
 
-            // [修復] 離開房間函式：通知資料庫後再重整
+            // [修復] 離開房間時清理資料
             window.leaveRoom = async () => {
-                if (unsubscribeRoom) { unsubscribeRoom(); unsubscribeRoom = null; }
-                // 如果是房主，將房間標記為關閉
-                if (window.currentRoomId && window.myRole === 'p1') {
-                    try { await updateDoc(getRef(window.currentRoomId), { status: 'closed' }); } catch(e) {}
+                if (window.currentRoomId) {
+                    if (window.myRole === 'p1') {
+                        // 房主離開：關閉房間
+                        try { await updateDoc(getRef(window.currentRoomId), { status: 'closed' }); } catch(e) {}
+                    }
                 }
                 location.reload();
             };
@@ -403,26 +371,21 @@ const Sound = {
     lose: ()=> { if(!sfxOn)return; [300,250,200,100].forEach((f,i)=>setTimeout(()=>Sound.play(f,'sawtooth',0.5,0.2),i*200)); }
 };
 
+// BGM
 const BGM = {
     on: false, t: null,
     start: function(){ if(this.on||!musicOn)return; initSfx(); this.on=true; this.loop(); },
     stop: function(){ this.on=false; clearTimeout(this.t); },
-    loop: function(){ 
-        if(!this.on)return; 
-        if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); 
-        this.t=setTimeout(()=>this.loop(), 500); 
-    }
+    loop: function(){ if(!this.on)return; if(actx && musicOn) Sound.play(80,'sawtooth',0.1,0.05); this.t=setTimeout(()=>this.loop(), 500); }
 };
 
 let gameMode = 'single', state = 0, timer = 0, mouse = {x:0,y:0};
-let turnTimer = TURN_LIMIT;
 const ST = { INPUT:0, ANIM:1, RESOLVE:2, OVER:3 };
 let p1 = {hp:MAX_HP, en:0, x:250, y:320, state:'idle', shake:0, flash:0};
 let p2 = {hp:MAX_HP, en:0, x:650, y:320, state:'idle', shake:0, flash:0};
 let p1Act = null, p2Act = null, msg = "";
 let fx = [], txts = [];
 let pendingServerData = null;
-let turnStartTime = 0;
 
 class Btn {
     constructor(t,x,y,c,a,cost=0){this.t=t;this.r={x,y,w:100,h:50};this.c=c;this.a=a;this.cost=cost;}
@@ -482,10 +445,10 @@ window.startGame = (m) => {
     particles=[]; floatingTexts=[];
     pendingServerData = null;
     state = ST.INPUT;
-    turnTimer = TURN_LIMIT;
-    turnStartTime = Date.now();
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
+    
+    // [修復] 遊戲開始後才顯示投降鈕
     document.getElementById('btn-surrender').classList.remove('hidden');
     
     const btnRestart = document.getElementById('btn-restart');
@@ -523,19 +486,16 @@ window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
-    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
-    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
-    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -557,16 +517,9 @@ window.handleSync = (data, role) => {
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
-            if (state !== ST.INPUT) {
-                state = ST.INPUT;
-                turnStartTime = Date.now();
-            }
+            state = ST.INPUT;
             p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) {
-                 msg = "你的回合：請選擇行動"; 
-                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
-            }
-            else msg = "已鎖定，等待對手...";
+            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -592,7 +545,6 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
-// [新增] 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -621,20 +573,6 @@ function loop() {
 
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
-            
-            // [Fix] 絕對時間計時器
-            const elapsed = (Date.now() - turnStartTime) / 1000;
-            const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
-            
-            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
-            ctx.font = "bold 40px Orbitron";
-            ctx.textAlign = "center";
-            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
-            
-            if (timeLeft <= 0 && active) {
-                let autoAct = autoPickMove(role==='p1'?p1:p2);
-                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
-            }
         }
         
         let anyHover = false;
@@ -643,10 +581,7 @@ function loop() {
         });
         canvas.style.cursor = anyHover ? 'pointer' : 'default';
     }
-    else if(state === ST.ANIM) { 
-        turnStartTime = Date.now(); // 重置
-        timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } 
-    }
+    else if(state === ST.ANIM) { timer++; if(timer > 40) { resolveTurn(); state = ST.RESOLVE; timer = 0; } }
     else if(state === ST.RESOLVE) {
         timer++;
         if(timer > 60) {
@@ -661,7 +596,6 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                turnStartTime = Date.now(); // 重置
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
@@ -723,7 +657,7 @@ function spawnParts(x,y,c){for(let i=0;i<10;i++)fx.push({x:x,y:y,vy:(Math.random
 function spawnText(t,x,y,c,s=1){txts.push({t:t,x:x,y:y,c:c,life:50});}
 
 canvas.addEventListener('mousemove',e=>{ mouse = getMousePos(e); });
-// [重要] 綁定投降按鈕
+// [重要] 綁定投降按鈕 (取消連線按鈕也使用此邏輯)
 document.getElementById('btn-surrender').addEventListener('click', (e) => {
     e.stopPropagation(); 
     window.confirmSurrender();
