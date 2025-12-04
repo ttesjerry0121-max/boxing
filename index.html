@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v14.1 Energy Fix</title>
+    <title>Cyberpunk Boxing: v15.0 Perfect</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
         body {
             margin: 0; padding: 0; background-color: #050510;
             background: linear-gradient(rgba(0, 10, 20, 0.8), rgba(0, 5, 10, 0.9)),
-                url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2070&auto=format&fit=crop');
+                url('https://images.unsplash.com/photo-1577083552431-6e5fd01aa342?q=80&w=2062&auto=format&fit=crop');
             background-size: cover; background-position: center;
             display: flex; justify-content: center; align-items: center; height: 100vh; overflow: hidden;
             font-family: "Orbitron", "Noto Sans TC", sans-serif; color: white; user-select: none;
@@ -51,7 +51,9 @@
         .btn-secondary { border-color: #666; color: #aaa; text-shadow: none; background: transparent; }
         .btn-secondary:hover { border-color: #fff; color: #fff; background: rgba(255,255,255,0.1); }
         
-        /* 頂部功能列 */
+        .btn-exit { border-color: #ff3333; color: #ff3333; text-shadow: none; background: transparent; }
+        .btn-exit:hover { border-color: #ff6666; color: #fff; background: rgba(255, 50, 50, 0.2); box-shadow: 0 0 15px #f00; }
+
         .top-bar {
             position: absolute; top: 0; left: 0; width: 100%; padding: 15px; box-sizing: border-box;
             display: flex; justify-content: space-between; align-items: center; 
@@ -74,7 +76,11 @@
         .status-pill.online { border-color: #0f0; color: #0f0; text-shadow: 0 0 5px #0f0; }
         
         .input-code { background: #222; border: 1px solid #0ff; color: #fff; font-size: 32px; text-align: center; width: 200px; padding: 10px; font-family: 'Orbitron'; letter-spacing: 5px; border-radius: 5px; }
-        .room-code-display { font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; }
+        .room-code-display { 
+            font-size: 72px; color: #ffe600; font-weight: bold; margin: 30px; text-shadow: 0 0 20px #ffe600; 
+            cursor: pointer; transition: 0.2s;
+        }
+        .room-code-display:hover { color: #fff; transform: scale(1.05); }
         
         .rules-card { border: 1px solid #0ff; background: rgba(10, 15, 25, 0.98); padding: 40px; max-width: 650px; width: 90%; box-shadow: 0 0 50px rgba(0,255,255,0.15); }
         .rule-item { margin-bottom: 20px; border-left: 4px solid #ffe600; padding-left: 15px; text-align: left; }
@@ -82,11 +88,14 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
+        /* [修復] 身分標示位置移至下方 */
         #player-badge { 
-            position: absolute; top: 85px; left: 20px; 
-            background: rgba(0,0,0,0.85); border: 1px solid #fff; color: #fff; 
-            padding: 4px 10px; font-size: 12px; display: none; pointer-events: none; 
-            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
+            position: absolute; 
+            bottom: 130px; /* 改為底部 */
+            /* left/right 會在 JS 中動態設定 */
+            background: rgba(0,0,0,0.9); border: 1px solid #fff; color: #fff; 
+            padding: 6px 15px; font-size: 14px; display: none; pointer-events: none; 
+            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.8); 
             font-weight: bold; letter-spacing: 1px; z-index: 90;
         }
     </style>
@@ -116,7 +125,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v14.1 Energy Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v15.0 Ultimate</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -133,10 +142,11 @@
         </div>
         <div id="lobby-wait" class="hidden" style="text-align: center;">
             <div style="color:#0ff; letter-spacing:2px; font-size:14px;">WAITING FOR OPPONENT</div>
-            <div id="room-code-display" class="room-code-display">----</div>
-            <p style="color:#aaa; font-size:14px;">請將代碼分享給對手</p>
-            <br>
-            <button class="btn-menu btn-secondary" onclick="window.leaveRoom()">取消等待 (Cancel)</button>
+            
+            <div id="room-code-display" class="room-code-display" onclick="copyRoomCode()" title="點擊複製">----</div>
+            <p style="color:#aaa; font-size:14px; margin-bottom: 30px;">請將代碼分享給對手 (點擊號碼複製)</p>
+            
+            <button id="btn-cancel" class="btn-menu btn-exit">❌ 退出房間 (Exit)</button>
         </div>
     </div>
 
@@ -201,6 +211,20 @@
         } else {
             p1.hp = 0; state = ST.ANIM; timer = 100; p1Act = 'idle'; p2Act = 'idle'; msg = "你投降了！";
         }
+    };
+    
+    window.copyRoomCode = function() {
+        const code = document.getElementById('room-code-display').innerText;
+        if(code === '----') return;
+        const textArea = document.createElement("textarea");
+        textArea.value = code; textArea.style.position = "fixed"; textArea.style.left = "-9999px";
+        document.body.appendChild(textArea); textArea.select();
+        try {
+            const successful = document.execCommand('copy');
+            if (successful) alert("房間代碼已複製: " + code);
+            else prompt("請手動複製代碼：", code);
+        } catch (err) { prompt("請手動複製代碼：", code); }
+        document.body.removeChild(textArea);
     };
 
     window.onload = function() {
@@ -272,6 +296,13 @@
                 window.myRole = 'p1'; 
                 document.getElementById('lobby-main').classList.add('hidden'); document.getElementById('lobby-wait').classList.remove('hidden'); document.getElementById('room-code-display').innerText = code;
                 
+                // [修正] 身分標示位置
+                const badge = document.getElementById('player-badge'); 
+                badge.style.display = 'block';
+                badge.innerText = "你是: P1 (藍方)";
+                badge.style.borderColor = CLR.BLUE;
+                badge.style.left = '20px'; badge.style.right = 'auto';
+                
                 await setDoc(getRef(code), { 
                     status: 'waiting', p1: currentUser.uid, p2: null, 
                     p1_act: null, p2_act: null, 
@@ -294,6 +325,14 @@
                 await updateDoc(ref, { p2: currentUser.uid, status: 'playing' });
                 window.currentRoomId = code; 
                 window.myRole = 'p2'; 
+                
+                // [修正] 身分標示位置
+                const badge = document.getElementById('player-badge'); 
+                badge.style.display = 'block';
+                badge.innerText = "你是: P2 (紅方)";
+                badge.style.borderColor = CLR.RED;
+                badge.style.right = '20px'; badge.style.left = 'auto';
+
                 startGame('multi'); setupListener(code);
             };
 
@@ -307,15 +346,7 @@
                 if (window.currentRoomId && window.myRole === 'p1') {
                     try { await updateDoc(getRef(window.currentRoomId), { status: 'closed' }); } catch(e) {}
                 }
-                window.currentRoomId = null;
-                window.myRole = null;
-                window.gameMode = 'single';
-                
-                document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
-                document.getElementById('ui-lobby').classList.remove('hidden');
-                document.getElementById('lobby-wait').classList.add('hidden');
-                document.getElementById('lobby-main').classList.remove('hidden');
-                document.getElementById('btn-surrender').classList.add('hidden');
+                location.reload();
             };
 
             window.requestRestart = async () => {
@@ -460,7 +491,7 @@ window.startGame = (m) => {
     pendingServerData = null;
     state = ST.INPUT;
     turnTimer = TURN_LIMIT;
-    turnStartTime = Date.now(); // 真實時間初始化
+    turnStartTime = Date.now();
     
     document.querySelectorAll('.ui-layer').forEach(e=>e.classList.add('hidden'));
     document.getElementById('btn-surrender').classList.remove('hidden');
@@ -477,15 +508,6 @@ window.startGame = (m) => {
     } else { 
         msg = "連線成功！請選擇行動"; 
         const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`;
-        const badge = document.getElementById('player-badge'); badge.style.display = 'block';
-        badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
-        badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
-        
-        if(window.myRole === 'p1') {
-            badge.style.left = '20px'; badge.style.right = 'auto';
-        } else {
-            badge.style.right = '20px'; badge.style.left = 'auto';
-        }
     }
 };
 
@@ -496,7 +518,7 @@ window.restartGame = () => {
 };
 
 window.handleSync = (data, role) => {
-    if (data.status === 'closed') { alert("對方已離開遊戲"); window.leaveRoom(); return; }
+    if (data.status === 'closed') { alert("對方已離開遊戲"); location.reload(); return; }
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
@@ -518,28 +540,30 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
-    if (!data.p1_act && !data.p2_act) applyServerData();
-    if (state === ST.INPUT) applyServerData();
+    
+    // [Fix] 同步機制
+    if (state === ST.INPUT || (!data.p1_act && !data.p2_act)) {
+        applyServerData();
+    }
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
         if(state === ST.INPUT) {
             p1Act = data.p1_act; p2Act = data.p2_act;
-            checkAndDeduct(p1, p1Act); checkAndDeduct(p2, p2Act);
+            deductEn(p1, p1Act); deductEn(p2, p2Act);
             setState(p1, p1Act); setState(p2, p2Act);
             state = ST.ANIM; timer = 0; msg = "交鋒時刻！";
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
+            // 新回合開始，重置時間與能量
             if (state !== ST.INPUT) {
                 state = ST.INPUT;
-                turnStartTime = Date.now(); // 重置計時器
+                turnStartTime = Date.now();
+                // 確保進入 INPUT 時資料是最新的
+                applyServerData();
             }
-            p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) {
-                 msg = "你的回合：請選擇行動"; 
-            }
-            else msg = "已鎖定，等待對手...";
+            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -559,11 +583,12 @@ function checkAndDeduct(p, act) {
     return act;
 }
 
+function deductEn(p,act){if(act==='skill1')p.en-=1;if(act==='skill2')p.en-=2;if(act==='skill3')p.en-=3;if(p.en<0)p.en=0;}
+
 function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
-// [修正] v11.3 - 確保 autoPickMove 存在
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -571,7 +596,9 @@ function autoPickMove(p) {
 }
 
 function loop() {
-    ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
+    ctx.clearRect(0,0,900,600);
+    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,900,600);
+
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -593,7 +620,6 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix] v11.3 真實時間計時
             if (active && turnStartTime > 0) {
                 const elapsed = (Date.now() - turnStartTime) / 1000;
                 const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
@@ -641,8 +667,11 @@ function loop() {
         }
     }
 
-    drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40);
+    // [Fix] HUD 位置調整至 y=50
+    drawHUD(20,50,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,50,p2,CLR.RED,"PLAYER 2");
+    
+    // 訊息位置
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); 
     requestAnimationFrame(loop);
 }
 
@@ -670,23 +699,18 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [Fix v14.1] 移除二次扣能，只讀取動作
-    // 之前這裡又呼叫了 checkAndDeduct 導致扣兩倍
-    // 現在直接使用已經存好的 p1Act
-    const r1 = p1Act;
-    const r2 = p2Act;
-
-    if(["attack","skill1","skill2","skill3"].includes(r1)){
-        let dmg=DMG[r1], blk=false;
-        if(r1==="skill3"){if(r2==="s_block")blk=true;}else{if(r2==="block")blk=true;}
+    // [Fix v14.1] 移除二次扣能
+    if(["attack","skill1","skill2","skill3"].includes(p1Act)){
+        let dmg=DMG[p1Act], blk=false;
+        if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
         if(blk){spawnText("格擋!",p2.x,p2.y-100,CLR.BLUE);Sound.block();}else{p2.hp-=dmg;p2.shake=20;p2.flash=5;spawnText("-"+dmg,p2.x,p2.y-100,CLR.RED);Sound.hit();}
     }
-    if(["attack","skill1","skill2","skill3"].includes(r2)){
-        let dmg=DMG[r2], blk=false;
-        if(r2==="skill3"){if(r1==="s_block")blk=true;}else{if(r1==="block")blk=true;}
+    if(["attack","skill1","skill2","skill3"].includes(p2Act)){
+        let dmg=DMG[p2Act], blk=false;
+        if(p2Act==="skill3"){if(p1Act==="s_block")blk=true;}else{if(p1Act==="block")blk=true;}
         if(blk){spawnText("格擋!",p1.x,p1.y-100,CLR.BLUE);Sound.block();}else{p1.hp-=dmg;p1.shake=20;p1.flash=5;spawnText("-"+dmg,p1.x,p1.y-100,CLR.RED);Sound.hit();}
     }
-    handleCharge(p1,r1,r2); handleCharge(p2,r2,r1);
+    handleCharge(p1,p1Act,p2Act); handleCharge(p2,p2Act,p1Act);
 }
 
 function handleCharge(p,myAct,opAct){
@@ -699,10 +723,15 @@ function spawnParts(x,y,c){for(let i=0;i<10;i++)fx.push({x:x,y:y,vy:(Math.random
 function spawnText(t,x,y,c,s=1){txts.push({t:t,x:x,y:y,c:c,life:50});}
 
 canvas.addEventListener('mousemove',e=>{ mouse = getMousePos(e); });
-// [重要] 綁定投降按鈕
+// [重要] 綁定投降按鈕 (取消連線按鈕也使用此邏輯)
 document.getElementById('btn-surrender').addEventListener('click', (e) => {
     e.stopPropagation(); 
     window.confirmSurrender();
+});
+// 為 "取消連線" 按鈕綁定事件 (避免點不到)
+document.getElementById('btn-cancel').addEventListener('click', (e) => {
+    e.stopPropagation();
+    window.leaveRoom();
 });
 
 canvas.addEventListener('mousedown',e=>{
@@ -738,4 +767,3 @@ loop();
 </script>
 </body>
 </html>
-
