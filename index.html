@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v15.0 Perfect</title>
+    <title>Cyberpunk Boxing: v15.1 Fix</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -88,14 +88,11 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
-        /* [修復] 身分標示位置移至下方 */
         #player-badge { 
-            position: absolute; 
-            bottom: 130px; /* 改為底部 */
-            /* left/right 會在 JS 中動態設定 */
-            background: rgba(0,0,0,0.9); border: 1px solid #fff; color: #fff; 
-            padding: 6px 15px; font-size: 14px; display: none; pointer-events: none; 
-            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.8); 
+            position: absolute; top: 100px; left: 20px; 
+            background: rgba(0,0,0,0.85); border: 1px solid #fff; color: #fff; 
+            padding: 4px 10px; font-size: 12px; display: none; pointer-events: none; 
+            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
             font-weight: bold; letter-spacing: 1px; z-index: 90;
         }
     </style>
@@ -125,7 +122,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v15.0 Ultimate</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v15.1 Variable Fix</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -296,7 +293,7 @@
                 window.myRole = 'p1'; 
                 document.getElementById('lobby-main').classList.add('hidden'); document.getElementById('lobby-wait').classList.remove('hidden'); document.getElementById('room-code-display').innerText = code;
                 
-                // [修正] 身分標示位置
+                // 身分標示
                 const badge = document.getElementById('player-badge'); 
                 badge.style.display = 'block';
                 badge.innerText = "你是: P1 (藍方)";
@@ -326,7 +323,7 @@
                 window.currentRoomId = code; 
                 window.myRole = 'p2'; 
                 
-                // [修正] 身分標示位置
+                // 身分標示
                 const badge = document.getElementById('player-badge'); 
                 badge.style.display = 'block';
                 badge.innerText = "你是: P2 (紅方)";
@@ -472,6 +469,7 @@ const BTNS = [
 
 window.gameMode = 'single';
 
+// [修復] 確保所有全域函式都定義
 window.restartGameLocal = () => { startGame('single'); };
 window.confirmSurrender = function() {
     if (!confirm("確定要投降嗎？")) return;
@@ -508,6 +506,15 @@ window.startGame = (m) => {
     } else { 
         msg = "連線成功！請選擇行動"; 
         const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`;
+        const badge = document.getElementById('player-badge'); badge.style.display = 'block';
+        badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
+        badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
+        
+        if(window.myRole === 'p1') {
+            badge.style.left = '20px'; badge.style.right = 'auto';
+        } else {
+            badge.style.right = '20px'; badge.style.left = 'auto';
+        }
     }
 };
 
@@ -522,16 +529,19 @@ window.handleSync = (data, role) => {
     if(data.status==='waiting') return;
     if(data.status==='playing' && !document.getElementById('ui-lobby').classList.contains('hidden')) startGame('multi');
 
+    // 重置偵測
     if(data.p1_hp === 100 && data.p2_hp === 100 && !data.p1_act && !data.p2_act && state !== ST.INPUT) {
         startGame('multi'); return;
     }
 
+    // 重賽意願顯示
     if (state === ST.OVER) {
         const opRole = role === 'p1' ? 'p2' : 'p1';
         if (data[opRole + '_r']) document.getElementById('restart-status').innerText = "對手想要再來一局！";
         if (role === 'p1' && data.p1_r && data.p2_r) window.resetMultiMatch();
     }
     
+    // 投降偵測 (優先)
     const isSurrender = data.p1_act === 'surrender' || data.p2_act === 'surrender' || data.p1_hp <= 0 || data.p2_hp <= 0;
     if(state !== ST.OVER && isSurrender) {
         p1.hp = data.p1_hp; p2.hp = data.p2_hp;
@@ -540,11 +550,8 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
-    
-    // [Fix] 同步機制
-    if (state === ST.INPUT || (!data.p1_act && !data.p2_act)) {
-        applyServerData();
-    }
+    if (!data.p1_act && !data.p2_act) applyServerData();
+    if (state === ST.INPUT) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
@@ -556,14 +563,16 @@ window.handleSync = (data, role) => {
         }
     } else {
         if(state!==ST.ANIM && state!==ST.RESOLVE && state!==ST.OVER) {
-            // 新回合開始，重置時間與能量
             if (state !== ST.INPUT) {
                 state = ST.INPUT;
                 turnStartTime = Date.now();
-                // 確保進入 INPUT 時資料是最新的
-                applyServerData();
             }
-            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
+            p1.en = data.p1_en; p2.en = data.p2_en;
+            if(!myAct) {
+                 msg = "你的回合：請選擇行動"; 
+                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
+            }
+            else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -589,6 +598,7 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
+// [新增] 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -596,9 +606,7 @@ function autoPickMove(p) {
 }
 
 function loop() {
-    ctx.clearRect(0,0,900,600);
-    ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,900,600);
-
+    ctx.fillStyle = CLR.BG; ctx.fillRect(0,0,900,600);
     let ox=0,oy=0;
     if(p1.shake>0) p1.shake *= 0.85; if(p2.shake>0) p2.shake *= 0.85;
     if(p1.shake<0.5) p1.shake=0; if(p2.shake<0.5) p2.shake=0;
@@ -620,19 +628,19 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            if (active && turnStartTime > 0) {
-                const elapsed = (Date.now() - turnStartTime) / 1000;
-                const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
-                
-                ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
-                ctx.font = "bold 40px Orbitron";
-                ctx.textAlign = "center";
-                ctx.fillText(Math.ceil(timeLeft), 450, 130); 
-                
-                if (timeLeft <= 0) {
-                    let autoAct = autoPickMove(role==='p1'?p1:p2);
-                    if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
-                }
+            // [Fix] 絕對時間計時器
+            const elapsed = (Date.now() - turnStartTime) / 1000;
+            const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
+            
+            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
+            ctx.font = "bold 40px Orbitron";
+            ctx.textAlign = "center";
+            // [調整] 計時器位置
+            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
+            
+            if (timeLeft <= 0) {
+                let autoAct = autoPickMove(role==='p1'?p1:p2);
+                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
             }
         }
         
@@ -660,18 +668,16 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                turnStartTime = Date.now(); // 重置
+                turnStartTime = Date.now(); // [Fix] 重置
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
         }
     }
 
-    // [Fix] HUD 位置調整至 y=50
-    drawHUD(20,50,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,50,p2,CLR.RED,"PLAYER 2");
-    
-    // 訊息位置
-    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); 
+    // [Layout Fix] HUD 畫在下面一點 (80)
+    drawHUD(20,80,p1,CLR.BLUE,"PLAYER 1"); drawHUD(660,80,p2,CLR.RED,"PLAYER 2");
+    ctx.fillStyle=CLR.WHT; ctx.font="bold 24px 'Noto Sans TC'"; ctx.textAlign="center"; ctx.fillText(msg,450,40); // 訊息放上面
     requestAnimationFrame(loop);
 }
 
@@ -699,7 +705,7 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [Fix v14.1] 移除二次扣能
+    // [Fix] 使用統一變數
     if(["attack","skill1","skill2","skill3"].includes(p1Act)){
         let dmg=DMG[p1Act], blk=false;
         if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
@@ -723,12 +729,12 @@ function spawnParts(x,y,c){for(let i=0;i<10;i++)fx.push({x:x,y:y,vy:(Math.random
 function spawnText(t,x,y,c,s=1){txts.push({t:t,x:x,y:y,c:c,life:50});}
 
 canvas.addEventListener('mousemove',e=>{ mouse = getMousePos(e); });
-// [重要] 綁定投降按鈕 (取消連線按鈕也使用此邏輯)
+// [重要] 綁定投降按鈕
 document.getElementById('btn-surrender').addEventListener('click', (e) => {
     e.stopPropagation(); 
     window.confirmSurrender();
 });
-// 為 "取消連線" 按鈕綁定事件 (避免點不到)
+// 為 "取消連線" 按鈕綁定事件
 document.getElementById('btn-cancel').addEventListener('click', (e) => {
     e.stopPropagation();
     window.leaveRoom();
@@ -744,7 +750,7 @@ canvas.addEventListener('mousedown',e=>{
         if(b.check(mouse,myEn)){
             Sound.click();
             if(window.gameMode==='single'){
-                p1Act = b.a; 
+                p1Act = b.a; // [Fix] 變數修正
                 let opts=["attack","block"];
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
                 p2Act=opts[Math.floor(Math.random()*opts.length)];
