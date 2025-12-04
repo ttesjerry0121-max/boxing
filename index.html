@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Cyberpunk Boxing: v15.1 Fix</title>
+    <title>Cyberpunk Boxing: v16.0 Final</title>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Noto+Sans+TC:wght@400;700&display=swap');
 
@@ -26,7 +26,6 @@
         }
         canvas { display: block; width: 100%; height: 100%; touch-action: none; }
         
-        /* UI 層 */
         .ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(5,5,12,0.95); display: flex; flex-direction: column;
@@ -88,12 +87,16 @@
         
         #restart-status { color: #ffe600; font-size: 16px; margin-top: 15px; height: 24px; text-shadow: 0 0 10px #ffe600; }
         
+        /* [修正] 身分標示位置：置中於計時器下方 */
         #player-badge { 
-            position: absolute; top: 100px; left: 20px; 
+            position: absolute; 
+            top: 165px; 
+            left: 50%; transform: translateX(-50%);
             background: rgba(0,0,0,0.85); border: 1px solid #fff; color: #fff; 
-            padding: 4px 10px; font-size: 12px; display: none; pointer-events: none; 
-            border-radius: 4px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
+            padding: 4px 15px; font-size: 14px; display: none; pointer-events: none; 
+            border-radius: 20px; box-shadow: 0 0 10px rgba(0,0,0,0.5); 
             font-weight: bold; letter-spacing: 1px; z-index: 90;
+            white-space: nowrap;
         }
     </style>
 </head>
@@ -106,13 +109,14 @@
             <div class="status-pill" id="room-info" style="display:none;"></div>
         </div>
         <div style="pointer-events: auto; display: flex; gap: 5px;">
-            <button id="btn-surrender" class="top-btn btn-surrender hidden">🏳️ 投降 (Surrender)</button>
+            <button id="btn-surrender" class="top-btn btn-surrender hidden">🏳️ 投降</button>
             <button class="top-btn" onclick="toggleRules()">❓ 規則</button>
             <button id="btn-music" class="top-btn active">🎵 BGM</button>
             <button id="btn-sfx" class="top-btn active">🔊 SFX</button>
         </div>
     </div>
     
+    <!-- 身分標示 (置中) -->
     <div id="player-badge"></div>
 
     <!-- UI: 主選單 -->
@@ -122,7 +126,7 @@
         <button class="btn-menu" onclick="startGame('single')">單人闖關 (PvE)</button>
         <button id="btn-multi" class="btn-menu" disabled onclick="showLobby()">多人連線 (PvP)</button>
         <button class="btn-menu btn-secondary" onclick="toggleRules()">操作說明</button>
-        <div style="margin-top: 30px; font-size: 12px; color: #555;">v15.1 Variable Fix</div>
+        <div style="margin-top: 30px; font-size: 12px; color: #555;">v16.0 Final Visual</div>
     </div>
 
     <!-- UI: 大廳 -->
@@ -143,7 +147,7 @@
             <div id="room-code-display" class="room-code-display" onclick="copyRoomCode()" title="點擊複製">----</div>
             <p style="color:#aaa; font-size:14px; margin-bottom: 30px;">請將代碼分享給對手 (點擊號碼複製)</p>
             
-            <button id="btn-cancel" class="btn-menu btn-exit">❌ 退出房間 (Exit)</button>
+            <button id="btn-cancel" class="btn-menu btn-exit">❌ 退出房間</button>
         </div>
     </div>
 
@@ -202,7 +206,7 @@
     window.requestRestart = function() { restartGameLocal(); };
 
     window.confirmSurrender = function() {
-        if (!confirm("確定要投降嗎？ (Surrender?)")) return;
+        if (!confirm("確定要投降嗎？")) return;
         if (window.gameMode === 'multi') {
             if (window.sendSurrender) window.sendSurrender();
         } else {
@@ -293,13 +297,9 @@
                 window.myRole = 'p1'; 
                 document.getElementById('lobby-main').classList.add('hidden'); document.getElementById('lobby-wait').classList.remove('hidden'); document.getElementById('room-code-display').innerText = code;
                 
-                // 身分標示
-                const badge = document.getElementById('player-badge'); 
-                badge.style.display = 'block';
-                badge.innerText = "你是: P1 (藍方)";
-                badge.style.borderColor = CLR.BLUE;
-                badge.style.left = '20px'; badge.style.right = 'auto';
-                
+                // 更新全域身分
+                updatePlayerBadge();
+
                 await setDoc(getRef(code), { 
                     status: 'waiting', p1: currentUser.uid, p2: null, 
                     p1_act: null, p2_act: null, 
@@ -323,15 +323,19 @@
                 window.currentRoomId = code; 
                 window.myRole = 'p2'; 
                 
-                // 身分標示
-                const badge = document.getElementById('player-badge'); 
-                badge.style.display = 'block';
-                badge.innerText = "你是: P2 (紅方)";
-                badge.style.borderColor = CLR.RED;
-                badge.style.right = '20px'; badge.style.left = 'auto';
+                // 更新全域身分
+                updatePlayerBadge();
 
                 startGame('multi'); setupListener(code);
             };
+            
+            function updatePlayerBadge() {
+                const badge = document.getElementById('player-badge');
+                badge.style.display = 'block';
+                badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
+                badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
+                // 強制置中，由 CSS 控制
+            }
 
             function setupListener(code) {
                 if (unsubscribeRoom) unsubscribeRoom();
@@ -469,7 +473,6 @@ const BTNS = [
 
 window.gameMode = 'single';
 
-// [修復] 確保所有全域函式都定義
 window.restartGameLocal = () => { startGame('single'); };
 window.confirmSurrender = function() {
     if (!confirm("確定要投降嗎？")) return;
@@ -506,15 +509,6 @@ window.startGame = (m) => {
     } else { 
         msg = "連線成功！請選擇行動"; 
         const rInfo=document.getElementById('room-info'); rInfo.style.display='block'; rInfo.innerText=`Room: ${window.currentRoomId}`;
-        const badge = document.getElementById('player-badge'); badge.style.display = 'block';
-        badge.innerText = (window.myRole === 'p1') ? "你是: P1 (藍方)" : "你是: P2 (紅方)";
-        badge.style.borderColor = (window.myRole === 'p1') ? CLR.BLUE : CLR.RED;
-        
-        if(window.myRole === 'p1') {
-            badge.style.left = '20px'; badge.style.right = 'auto';
-        } else {
-            badge.style.right = '20px'; badge.style.left = 'auto';
-        }
     }
 };
 
@@ -550,8 +544,10 @@ window.handleSync = (data, role) => {
     }
 
     pendingServerData = data;
+    // [Fix v15.0] 集氣同步：如果伺服器沒動作，強制覆蓋
     if (!data.p1_act && !data.p2_act) applyServerData();
-    if (state === ST.INPUT) applyServerData();
+    // 如果剛進入 INPUT 狀態，也強制覆蓋
+    if (state === ST.INPUT && !p1Act && !p2Act) applyServerData();
 
     const myAct = role==='p1' ? data.p1_act : data.p2_act;
     if(data.p1_act && data.p2_act) {
@@ -567,12 +563,11 @@ window.handleSync = (data, role) => {
                 state = ST.INPUT;
                 turnStartTime = Date.now();
             }
+            // [Fix v15.0] INPUT 階段保持數值同步
             p1.en = data.p1_en; p2.en = data.p2_en;
-            if(!myAct) {
-                 msg = "你的回合：請選擇行動"; 
-                 if (turnTimer <= 0) turnTimer = TURN_LIMIT; 
-            }
-            else msg = "已鎖定，等待對手...";
+            p1.hp = data.p1_hp; p2.hp = data.p2_hp;
+            
+            if(!myAct) msg = "你的回合：請選擇行動"; else msg = "已鎖定，等待對手...";
         }
     }
 };
@@ -598,7 +593,7 @@ function setState(p,act){
     if(act==='charge')p.state='charge';else if(act==='block')p.state='block';else if(act==='s_block')p.state='s_block';else if(act.includes('skill')||act==='attack')p.state='attack';else p.state='idle';
 }
 
-// [新增] 自動出招邏輯
+// 自動出招邏輯
 function autoPickMove(p) {
     let opts = ["attack","block"];
     if(p.en>=1)opts.push("skill1"); if(p.en>=2)opts.push("skill2"); if(p.en>=3)opts.push("skill3"); if(p.en==0)opts.push("charge");
@@ -628,19 +623,20 @@ function loop() {
         if(window.gameMode === 'multi') {
             if(msg.includes("等待") || msg.includes("已鎖定")) active = false;
             
-            // [Fix] 絕對時間計時器
-            const elapsed = (Date.now() - turnStartTime) / 1000;
-            const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
-            
-            ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
-            ctx.font = "bold 40px Orbitron";
-            ctx.textAlign = "center";
-            // [調整] 計時器位置
-            ctx.fillText(Math.ceil(timeLeft), 450, 130); 
-            
-            if (timeLeft <= 0) {
-                let autoAct = autoPickMove(role==='p1'?p1:p2);
-                if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+            if (active && turnStartTime > 0) {
+                const elapsed = (Date.now() - turnStartTime) / 1000;
+                const timeLeft = Math.max(0, TURN_LIMIT - elapsed);
+                
+                ctx.fillStyle = timeLeft <= 5 ? "#ff3333" : "#ffe600";
+                ctx.font = "bold 40px Orbitron";
+                ctx.textAlign = "center";
+                // [調整] 計時器位置：中央偏上
+                ctx.fillText(Math.ceil(timeLeft), 450, 130); 
+                
+                if (timeLeft <= 0) {
+                    let autoAct = autoPickMove(role==='p1'?p1:p2);
+                    if(window.sendAction) { window.sendAction(autoAct); msg="時間到! 自動出招..."; }
+                }
             }
         }
         
@@ -668,7 +664,7 @@ function loop() {
                 document.getElementById('btn-surrender').classList.add('hidden');
             } else {
                 state = ST.INPUT; msg = "下一回合";
-                turnStartTime = Date.now(); // [Fix] 重置
+                turnStartTime = Date.now(); // 重置
                 if(window.gameMode==='multi' && window.syncState) window.syncState({p1_hp:p1.hp, p1_en:p1.en, p2_hp:p2.hp, p2_en:p2.en});
             }
             if(window.gameMode === 'multi') applyServerData();
@@ -705,7 +701,7 @@ function drawHUD(x,y,p,c,n){
 function resolveTurn() {
     if(p1.hp<=0||p2.hp<=0) return;
     
-    // [Fix] 使用統一變數
+    // [Fix] 移除二次扣能
     if(["attack","skill1","skill2","skill3"].includes(p1Act)){
         let dmg=DMG[p1Act], blk=false;
         if(p1Act==="skill3"){if(p2Act==="s_block")blk=true;}else{if(p2Act==="block")blk=true;}
@@ -750,7 +746,7 @@ canvas.addEventListener('mousedown',e=>{
         if(b.check(mouse,myEn)){
             Sound.click();
             if(window.gameMode==='single'){
-                p1Act = b.a; // [Fix] 變數修正
+                p1Act = b.a; 
                 let opts=["attack","block"];
                 if(p2.en>=1)opts.push("skill1");if(p2.en>=2)opts.push("skill2");if(p2.en>=3)opts.push("skill3");if(p2.en==0)opts.push("charge");
                 p2Act=opts[Math.floor(Math.random()*opts.length)];
